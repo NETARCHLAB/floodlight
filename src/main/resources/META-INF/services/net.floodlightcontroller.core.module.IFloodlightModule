@@ -24,3 +24,5 @@ net.floodlightcontroller.loadbalancer.LoadBalancer
 net.floodlightcontroller.linkdiscovery.internal.LinkDiscoveryManager
 net.floodlightcontroller.devicemanager.internal.DeviceManagerImpl
 net.floodlightcontroller.firewall.Firewall
+edu.thu.ebgp.egpkeepalive.EGPKeepAlive
+edu.thu.bgp.gather.GatherModule
