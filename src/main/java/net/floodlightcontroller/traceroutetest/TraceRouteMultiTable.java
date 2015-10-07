@@ -99,7 +99,7 @@ public class TraceRouteMultiTable implements IFloodlightModule,
 				//logger.info("Packet in: inport: {} seen on switch: {}", myInPort.toString(), sw.getId().toString());
 				if (myVersion.equals(OFVersion.OF_13)){
 					
-					if (eth.getEtherType() == Ethernet.TYPE_IPv4){
+					if (eth.getEtherType() == EthType.IPv4){
 	        			IPv4 ipv4 = (IPv4) eth.getPayload();
 	        			String info = "Packet in: inport: " + myInPort.toString() +
 	        						  ", Switchid: " + sw.getId().toString() +
@@ -204,7 +204,7 @@ public class TraceRouteMultiTable implements IFloodlightModule,
 		Ethernet eth = new Ethernet();
 		eth.setSourceMACAddress(MacAddress.of("10:00:00:00:00:00"));
 		eth.setDestinationMACAddress(MacAddress.of("11:00:00:00:00:00"));
-		eth.setEtherType(Ethernet.TYPE_IPv4);
+		eth.setEtherType(EthType.IPv4);
 	 
 		/* Compose L3 packet. */
 		IPv4 ipv4 = new IPv4();
