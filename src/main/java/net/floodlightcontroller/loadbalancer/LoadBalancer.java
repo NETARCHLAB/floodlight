@@ -190,11 +190,10 @@ public class LoadBalancer implements IFloodlightModule,
                 // retrieve arp to determine target IP address                                                       
                 ARP arpRequest = (ARP) eth.getPayload();
 
-                int targetProtocolAddress = IPv4.toIPv4Address(arpRequest
-                                                               .getTargetProtocolAddress());
+                IPv4Address targetProtocolAddress = arpRequest.getTargetProtocolAddress();
 
-                if (vipIpToId.containsKey(targetProtocolAddress)) {
-                    String vipId = vipIpToId.get(targetProtocolAddress);
+                if (vipIpToId.containsKey(targetProtocolAddress.getInt())) {
+                    String vipId = vipIpToId.get(targetProtocolAddress.getInt());
                     vipProxyArpReply(sw, pi, cntx, vipId);
                     return Command.STOP;
                 }
@@ -227,9 +226,15 @@ public class LoadBalancer implements IFloodlightModule,
                     }
                     
                     LBVip vip = vips.get(vipIpToId.get(destIpAddress));
+                    if (vip == null)			// fix deference violations           
+                    	return Command.CONTINUE;
                     LBPool pool = pools.get(vip.pickPool(client));
+                    if (pool == null)			// fix deference violations
+                    	return Command.CONTINUE;
                     LBMember member = members.get(pool.pickMember(client));
-
+                    if(member == null)			//fix deference violations
+                    	return Command.CONTINUE;
+                    
                     // for chosen member, check device manager and find and push routes, in both directions                    
                     pushBidirectionalVipRoutes(sw, pi, cntx, client, member);
                    
@@ -265,13 +270,12 @@ public class LoadBalancer implements IFloodlightModule,
         ARP arpRequest = (ARP) eth.getPayload();
         
         // have to do proxy arp reply since at this point we cannot determine the requesting application type
-        byte[] vipProxyMacBytes = vips.get(vipId).proxyMac.getBytes();
         
         // generate proxy ARP reply
         IPacket arpReply = new Ethernet()
-            .setSourceMACAddress(vipProxyMacBytes)
+            .setSourceMACAddress(vips.get(vipId).proxyMac)
             .setDestinationMACAddress(eth.getSourceMACAddress())
-            .setEtherType(Ethernet.TYPE_ARP)
+            .setEtherType(EthType.ARP)
             .setVlanID(eth.getVlanID())
             .setPriorityCode(eth.getPriorityCode())
             .setPayload(
@@ -281,13 +285,10 @@ public class LoadBalancer implements IFloodlightModule,
                 .setHardwareAddressLength((byte) 6)
                 .setProtocolAddressLength((byte) 4)
                 .setOpCode(ARP.OP_REPLY)
-                .setSenderHardwareAddress(vipProxyMacBytes)
-                .setSenderProtocolAddress(
-                        arpRequest.getTargetProtocolAddress())
-                .setTargetHardwareAddress(
-                        eth.getSourceMACAddress().getBytes())
-                .setTargetProtocolAddress(
-                        arpRequest.getSenderProtocolAddress()));
+                .setSenderHardwareAddress(vips.get(vipId).proxyMac)
+                .setSenderProtocolAddress(arpRequest.getTargetProtocolAddress())
+                .setTargetHardwareAddress(eth.getSourceMACAddress())
+                .setTargetProtocolAddress(arpRequest.getSenderProtocolAddress()));
                 
         // push ARP reply out
         pushPacket(arpReply, sw, OFBufferId.NO_BUFFER, OFPort.ANY, (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT)), cntx, true);
@@ -511,7 +512,8 @@ public class LoadBalancer implements IFloodlightModule,
                fmb.setPriority(FlowModUtils.PRIORITY_MAX);
                
                if (inBound) {
-                   entryName = "inbound-vip-"+ member.vipId+"-client-"+client.ipAddress+"-port-"+client.targetPort
+                   entryName = "inbound-vip-"+ member.vipId+"-client-"+client.ipAddress
+                		   +"-srcport-"+client.srcPort+"-dstport-"+client.targetPort
                            +"-srcswitch-"+path.get(0).getNodeId()+"-sw-"+sw;
                    mb.setExact(MatchField.ETH_TYPE, EthType.IPv4)
                    .setExact(MatchField.IP_PROTO, client.nw_proto)
@@ -523,9 +525,12 @@ public class LoadBalancer implements IFloodlightModule,
                 	   mb.setExact(MatchField.UDP_SRC, client.srcPort);
                    } else if (client.nw_proto.equals(IpProtocol.SCTP)) {
                 	   mb.setExact(MatchField.SCTP_SRC, client.srcPort);
+                   } else if (client.nw_proto.equals(IpProtocol.ICMP)) {
+                	   /* no-op */
                    } else {
                 	   log.error("Unknown IpProtocol {} detected during inbound static VIP route push.", client.nw_proto);
                    }
+                   
 
                    if (sw.equals(pinSwitch.getId())) {
                        if (pinSwitch.getOFFactory().getVersion().compareTo(OFVersion.OF_12) < 0) { 
@@ -541,7 +546,8 @@ public class LoadBalancer implements IFloodlightModule,
                 	   actions.add(switchService.getSwitch(path.get(i+1).getNodeId()).getOFFactory().actions().output(path.get(i+1).getPortId(), Integer.MAX_VALUE));
                    }
                } else {
-                   entryName = "outbound-vip-"+ member.vipId+"-client-"+client.ipAddress+"-port-"+client.targetPort
+                   entryName = "outbound-vip-"+ member.vipId+"-client-"+client.ipAddress
+                		   +"-srcport-"+client.srcPort+"-dstport-"+client.targetPort
                            +"-srcswitch-"+path.get(0).getNodeId()+"-sw-"+sw;
                    mb.setExact(MatchField.ETH_TYPE, EthType.IPv4)
                    .setExact(MatchField.IP_PROTO, client.nw_proto)
@@ -553,6 +559,8 @@ public class LoadBalancer implements IFloodlightModule,
                 	   mb.setExact(MatchField.UDP_DST, client.srcPort);
                    } else if (client.nw_proto.equals(IpProtocol.SCTP)) {
                 	   mb.setExact(MatchField.SCTP_DST, client.srcPort);
+                   } else if (client.nw_proto.equals(IpProtocol.ICMP)) {
+                	   /* no-op */
                    } else {
                 	   log.error("Unknown IpProtocol {} detected during outbound static VIP route push.", client.nw_proto);
                    }
@@ -662,6 +670,8 @@ public class LoadBalancer implements IFloodlightModule,
         LBPool pool;
         if (pools != null) {
             pool = pools.get(poolId);
+            if (pool == null)	// fix deference violations
+            	return -1;
             if (pool.vipId != null)
                 vips.get(pool.vipId).pools.remove(poolId);
             pools.remove(poolId);

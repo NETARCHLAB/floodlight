@@ -30,10 +30,13 @@ import org.projectfloodlight.openflow.protocol.OFType;
 import org.projectfloodlight.openflow.protocol.OFPacketInReason;
 import org.projectfloodlight.openflow.protocol.OFVersion;
 import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv4Address;
+import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
+import org.projectfloodlight.openflow.types.VlanVid;
 import org.sdnplatform.sync.ISyncService;
 import org.sdnplatform.sync.test.MockSyncService;
 
@@ -156,7 +159,7 @@ public class VirtualNetworkFilterTest extends FloodlightTestCase {
         mac1ToMac2PacketIntestPacket = new Ethernet()
             .setDestinationMACAddress(mac2.getBytes())
             .setSourceMACAddress(mac1.getBytes())
-            .setEtherType(Ethernet.TYPE_IPv4)
+            .setEtherType(EthType.IPv4)
             .setPayload(
                 new IPv4()
                 .setTtl((byte) 128)
@@ -176,7 +179,7 @@ public class VirtualNetworkFilterTest extends FloodlightTestCase {
         mac1ToMac4PacketIntestPacket = new Ethernet()
         .setDestinationMACAddress(mac4.getBytes())
         .setSourceMACAddress(mac1.getBytes())
-        .setEtherType(Ethernet.TYPE_IPv4)
+        .setEtherType(EthType.IPv4)
         .setPayload(
             new IPv4()
             .setTtl((byte) 128)
@@ -196,7 +199,7 @@ public class VirtualNetworkFilterTest extends FloodlightTestCase {
         mac1ToGwPacketIntestPacket = new Ethernet()
         .setDestinationMACAddress("00:11:33:33:44:55")
         .setSourceMACAddress(mac1.getBytes())
-        .setEtherType(Ethernet.TYPE_IPv4)
+        .setEtherType(EthType.IPv4)
         .setPayload(
             new IPv4()
             .setTtl((byte) 128)
@@ -356,8 +359,8 @@ public class VirtualNetworkFilterTest extends FloodlightTestCase {
         IFloodlightProviderService.bcStore.put(cntx,
                            IFloodlightProviderService.CONTEXT_PI_PAYLOAD,
                                (Ethernet)mac1ToGwPacketIntestPacket);
-        deviceService.learnEntity(((Ethernet)mac1ToGwPacketIntestPacket).getDestinationMACAddress().getLong(),
-        		null, IPv4.toIPv4Address(gw1), null, null);
+        deviceService.learnEntity(((Ethernet)mac1ToGwPacketIntestPacket).getDestinationMACAddress(),
+        		VlanVid.ZERO, IPv4Address.of(gw1), IPv6Address.NONE, DatapathId.NONE, OFPort.ZERO);
         Command ret = listener.receive(sw1, mac1ToGwPacketIn, cntx);
         assertTrue(ret == Command.CONTINUE);
     }

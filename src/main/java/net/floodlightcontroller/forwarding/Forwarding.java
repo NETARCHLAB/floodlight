@@ -42,6 +42,7 @@ import net.floodlightcontroller.core.util.AppCookie;
 import net.floodlightcontroller.debugcounter.IDebugCounterService;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.IPv6;
 import net.floodlightcontroller.packet.TCP;
 import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.routing.ForwardingBase;
@@ -60,6 +61,7 @@ import org.projectfloodlight.openflow.protocol.OFVersion;
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv4Address;
+import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
@@ -83,7 +85,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 			recommendation=LogMessageDoc.REPORT_CONTROLLER_BUG)
 	public Command processPacketInMessage(IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx) {
 		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-
 		// We found a routing decision (i.e. Firewall is enabled... it's the only thing that makes RoutingDecisions)
 		if (decision != null) {
 			if (log.isTraceEnabled()) {
@@ -130,23 +131,8 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 					"drop flow mod to a switch",
 					recommendation=LogMessageDoc.CHECK_SWITCH)
 	protected void doDropFlow(IOFSwitch sw, OFPacketIn pi, IRoutingDecision decision, FloodlightContext cntx) {
-		// initialize match structure and populate it based on the packet in's match
-		Match.Builder mb = null;
-		if (decision.getMatch() != null) {
-			/* This routing decision should be a match object with all appropriate fields set,
-			 * not just masked. If it's a decision that matches the packet we received, then simply setting
-			 * the masks to the new match will create the same match in the end. We can just use the routing
-			 * match object instead.
-			 * 
-			 * The Firewall is currently the only module/service that sets routing decisions in the context 
-			 * store (or instantiates any for that matter). It's disabled by default, so as-is a decision's 
-			 * match should always be null, meaning this will never be true.
-			 */
-			mb = decision.getMatch().createBuilder();
-		} else {
-			mb = pi.getMatch().createBuilder(); // otherwise no route is known so go based on packet's match object
-		}
-
+		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
+		Match m = createMatchFromPacket(sw, inPort, cntx);
 		OFFlowMod.Builder fmb = sw.getOFFactory().buildFlowAdd(); // this will be a drop-flow; a flow that will not output to any ports
 		List<OFAction> actions = new ArrayList<OFAction>(); // set no action to drop
 		U64 cookie = AppCookie.makeCookie(FORWARDING_APP_ID, 0);
@@ -155,14 +141,14 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 		.setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
 		.setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
 		.setBufferId(OFBufferId.NO_BUFFER)
-		.setMatch(mb.build())
+		.setMatch(m)
 		.setActions(actions) // empty list
 		.setPriority(FLOWMOD_DEFAULT_PRIORITY);
 
 		try {
 			if (log.isDebugEnabled()) {
 				log.debug("write drop flow-mod sw={} match={} flow-mod={}",
-						new Object[] { sw, mb.build(), fmb.build() });
+						new Object[] { sw, m, fmb.build() });
 			}
 			boolean dampened = messageDamper.write(sw, fmb.build());
 			log.debug("OFMessage dampened: {}", dampened);
@@ -197,6 +183,8 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 			for (SwitchPort dstDap : dstDevice.getAttachmentPoints()) {
 				DatapathId dstSwDpid = dstDap.getSwitchDPID();
 				DatapathId dstIsland = topologyService.getL2DomainId(dstSwDpid);
+				log.trace("Source Island: {}, Destination Island: {}", srcIsland, dstIsland);
+				log.trace("Source Device: {}, Destination Device: {}", srcDevice, dstDevice);
 				if ((dstIsland != null) && dstIsland.equals(srcIsland)) {
 					on_same_island = true;
 					if (sw.getId().equals(dstSwDpid) && inPort.equals(dstDap.getPort())) {
@@ -252,76 +240,23 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 										srcDap.getPort(),
 										dstDap.getSwitchDPID(),
 										dstDap.getPort(), U64.of(0)); //cookie = 0, i.e., default route
-										if (route != null) {
-											if (log.isTraceEnabled()) {
-												log.trace("pushRoute inPort={} route={} " +
-														"destination={}:{}",
-														new Object[] { inPort, route,
-														dstDap.getSwitchDPID(),
-														dstDap.getPort()});
-											}
-											U64 cookie = AppCookie.makeCookie(FORWARDING_APP_ID, 0);
+						if (route != null) {
+							if (log.isTraceEnabled()) {
+								log.trace("pushRoute inPort={} route={} " +
+										"destination={}:{}",
+										new Object[] { inPort, route,
+										dstDap.getSwitchDPID(),
+										dstDap.getPort()});
+							}
 
-											// if there is prior routing decision use route's match
-											Match routeMatch = null;
-											IRoutingDecision decision = null;
-											if (cntx != null) {
-												decision = IRoutingDecision.rtStore.get(cntx, IRoutingDecision.CONTEXT_DECISION);
-											}
-											if (decision != null) {
-												routeMatch = decision.getMatch();
-											} else {
-												// The packet in match will only contain the port number.
-												// We need to add in specifics for the hosts we're routing between.
-												Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-												VlanVid vlan = VlanVid.ofVlan(eth.getVlanID());
-												MacAddress srcMac = eth.getSourceMACAddress();
-												MacAddress dstMac = eth.getDestinationMACAddress();
-												
-												// A retentive builder will remember all MatchFields of the parent the builder was generated from
-												// With a normal builder, all parent MatchFields will be lost if any MatchFields are added, mod, del
-												// TODO (This is a bug in Loxigen and the retentive builder is a workaround.)
-												Match.Builder mb = sw.getOFFactory().buildMatch();
-												mb.setExact(MatchField.IN_PORT, inPort)
-												.setExact(MatchField.ETH_SRC, srcMac)
-												.setExact(MatchField.ETH_DST, dstMac);
-												
-												if (!vlan.equals(VlanVid.ZERO)) {
-													mb.setExact(MatchField.VLAN_VID, OFVlanVidMatch.ofVlanVid(vlan));
-												}
-												
-												// TODO Detect switch type and match to create hardware-implemented flow
-												// TODO Set option in config file to support specific or MAC-only matches
-												if (eth.getEtherType() == Ethernet.TYPE_IPv4) {
-													IPv4 ip = (IPv4) eth.getPayload();
-													IPv4Address srcIp = ip.getSourceAddress();
-													IPv4Address dstIp = ip.getDestinationAddress();
-													mb.setExact(MatchField.IPV4_SRC, srcIp)
-													.setExact(MatchField.IPV4_DST, dstIp)
-													.setExact(MatchField.ETH_TYPE, EthType.IPv4);
-													
-													if (ip.getProtocol().equals(IpProtocol.TCP)) {
-														TCP tcp = (TCP) ip.getPayload();
-														mb.setExact(MatchField.IP_PROTO, IpProtocol.TCP)
-														.setExact(MatchField.TCP_SRC, tcp.getSourcePort())
-														.setExact(MatchField.TCP_DST, tcp.getDestinationPort());
-													} else if (ip.getProtocol().equals(IpProtocol.UDP)) {
-														UDP udp = (UDP) ip.getPayload();
-														mb.setExact(MatchField.IP_PROTO, IpProtocol.UDP)
-														.setExact(MatchField.UDP_SRC, udp.getSourcePort())
-														.setExact(MatchField.UDP_DST, udp.getDestinationPort());
-													}	
-												} else if (eth.getEtherType() == Ethernet.TYPE_ARP) {
-													mb.setExact(MatchField.ETH_TYPE, EthType.ARP);
-												} 
-												
-												routeMatch = mb.build();
-											}
+							U64 cookie = AppCookie.makeCookie(FORWARDING_APP_ID, 0);
 
-											pushRoute(route, routeMatch, pi, sw.getId(), cookie,
-													cntx, requestFlowRemovedNotifn, false,
-													OFFlowModCommand.ADD);
-										}
+							Match m = createMatchFromPacket(sw, inPort, cntx);
+
+							pushRoute(route, m, pi, sw.getId(), cookie,
+									cntx, requestFlowRemovedNotifn, false,
+									OFFlowModCommand.ADD);
+						}
 					}
 					iSrcDaps++;
 					iDstDaps++;
@@ -335,6 +270,111 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 			// Flood since we don't know the dst device
 			doFlood(sw, pi, cntx);
 		}
+	}
+
+	/**
+	 * Instead of using the Firewall's routing decision Match, which might be as general
+	 * as "in_port" and inadvertently Match packets erroneously, construct a more
+	 * specific Match based on the deserialized OFPacketIn's payload, which has been 
+	 * placed in the FloodlightContext already by the Controller.
+	 * 
+	 * @param sw, the switch on which the packet was received
+	 * @param inPort, the ingress switch port on which the packet was received
+	 * @param cntx, the current context which contains the deserialized packet
+	 * @return a composed Match object based on the provided information
+	 */
+	protected Match createMatchFromPacket(IOFSwitch sw, OFPort inPort, FloodlightContext cntx) {
+		// The packet in match will only contain the port number.
+		// We need to add in specifics for the hosts we're routing between.
+		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
+		VlanVid vlan = VlanVid.ofVlan(eth.getVlanID());
+		MacAddress srcMac = eth.getSourceMACAddress();
+		MacAddress dstMac = eth.getDestinationMACAddress();
+
+		Match.Builder mb = sw.getOFFactory().buildMatch();
+		mb.setExact(MatchField.IN_PORT, inPort);
+
+		if (FLOWMOD_DEFAULT_MATCH_MAC) {
+			mb.setExact(MatchField.ETH_SRC, srcMac)
+			.setExact(MatchField.ETH_DST, dstMac);
+		}
+
+		if (FLOWMOD_DEFAULT_MATCH_VLAN) {
+			if (!vlan.equals(VlanVid.ZERO)) {
+				mb.setExact(MatchField.VLAN_VID, OFVlanVidMatch.ofVlanVid(vlan));
+			}
+		}
+
+		// TODO Detect switch type and match to create hardware-implemented flow
+		// TODO Allow for IPv6 matches
+		if (eth.getEtherType() == EthType.IPv4) { /* shallow check for equality is okay for EthType */
+			IPv4 ip = (IPv4) eth.getPayload();
+			IPv4Address srcIp = ip.getSourceAddress();
+			IPv4Address dstIp = ip.getDestinationAddress();
+			
+			if (FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+				mb.setExact(MatchField.ETH_TYPE, EthType.IPv4)
+				.setExact(MatchField.IPV4_SRC, srcIp)
+				.setExact(MatchField.IPV4_DST, dstIp);
+			}
+
+			if (FLOWMOD_DEFAULT_MATCH_TRANSPORT) {
+				/*
+				 * Take care of the ethertype if not included earlier,
+				 * since it's a prerequisite for transport ports.
+				 */
+				if (!FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+					mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
+				}
+				
+				if (ip.getProtocol().equals(IpProtocol.TCP)) {
+					TCP tcp = (TCP) ip.getPayload();
+					mb.setExact(MatchField.IP_PROTO, IpProtocol.TCP)
+					.setExact(MatchField.TCP_SRC, tcp.getSourcePort())
+					.setExact(MatchField.TCP_DST, tcp.getDestinationPort());
+				} else if (ip.getProtocol().equals(IpProtocol.UDP)) {
+					UDP udp = (UDP) ip.getPayload();
+					mb.setExact(MatchField.IP_PROTO, IpProtocol.UDP)
+					.setExact(MatchField.UDP_SRC, udp.getSourcePort())
+					.setExact(MatchField.UDP_DST, udp.getDestinationPort());
+				}
+			}
+		} else if (eth.getEtherType() == EthType.ARP) { /* shallow check for equality is okay for EthType */
+			mb.setExact(MatchField.ETH_TYPE, EthType.ARP);
+		} else if (eth.getEtherType() == EthType.IPv6) {
+			IPv6 ip = (IPv6) eth.getPayload();
+			IPv6Address srcIp = ip.getSourceAddress();
+			IPv6Address dstIp = ip.getDestinationAddress();
+			
+			if (FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+				mb.setExact(MatchField.ETH_TYPE, EthType.IPv6)
+				.setExact(MatchField.IPV6_SRC, srcIp)
+				.setExact(MatchField.IPV6_DST, dstIp);
+			}
+
+			if (FLOWMOD_DEFAULT_MATCH_TRANSPORT) {
+				/*
+				 * Take care of the ethertype if not included earlier,
+				 * since it's a prerequisite for transport ports.
+				 */
+				if (!FLOWMOD_DEFAULT_MATCH_IP_ADDR) {
+					mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
+				}
+				
+				if (ip.getNextHeader().equals(IpProtocol.TCP)) {
+					TCP tcp = (TCP) ip.getPayload();
+					mb.setExact(MatchField.IP_PROTO, IpProtocol.TCP)
+					.setExact(MatchField.TCP_SRC, tcp.getSourcePort())
+					.setExact(MatchField.TCP_DST, tcp.getDestinationPort());
+				} else if (ip.getNextHeader().equals(IpProtocol.UDP)) {
+					UDP udp = (UDP) ip.getPayload();
+					mb.setExact(MatchField.IP_PROTO, IpProtocol.UDP)
+					.setExact(MatchField.UDP_SRC, udp.getSourcePort())
+					.setExact(MatchField.UDP_DST, udp.getDestinationPort());
+				}
+			}
+		}
+		return mb.build();
 	}
 
 	/**
@@ -466,6 +506,31 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule {
 		} else {
 			log.info("Default priority not configured. Using {}.", FLOWMOD_DEFAULT_PRIORITY);
 		}
+		tmp = configParameters.get("set-send-flow-rem-flag");
+		if (tmp != null) {
+			FLOWMOD_DEFAULT_SET_SEND_FLOW_REM_FLAG = Boolean.parseBoolean(tmp);
+			log.info("Default flags will be set to SEND_FLOW_REM.");
+		} else {
+			log.info("Default flags will be empty.");
+		}
+		tmp = configParameters.get("match");
+		if (tmp != null) {
+			tmp = tmp.toLowerCase();
+			if (!tmp.contains("vlan") && !tmp.contains("mac") && !tmp.contains("ip") && !tmp.contains("port")) {
+				/* leave the default configuration -- blank or invalid 'match' value */
+			} else {
+				FLOWMOD_DEFAULT_MATCH_VLAN = tmp.contains("vlan") ? true : false;
+				FLOWMOD_DEFAULT_MATCH_MAC = tmp.contains("mac") ? true : false;
+				FLOWMOD_DEFAULT_MATCH_IP_ADDR = tmp.contains("ip") ? true : false;
+				FLOWMOD_DEFAULT_MATCH_TRANSPORT = tmp.contains("port") ? true : false;
+
+			}
+		}
+		log.info("Default flow matches set to: VLAN=" + FLOWMOD_DEFAULT_MATCH_VLAN
+				+ ", MAC=" + FLOWMOD_DEFAULT_MATCH_MAC
+				+ ", IP=" + FLOWMOD_DEFAULT_MATCH_IP_ADDR
+				+ ", TPPT=" + FLOWMOD_DEFAULT_MATCH_TRANSPORT);
+
 	}
 
 	@Override

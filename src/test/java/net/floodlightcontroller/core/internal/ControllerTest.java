@@ -46,7 +46,6 @@ import net.floodlightcontroller.debugevent.IDebugEventService;
 import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPacket;
-import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.perfmon.IPktInProcessingTimeService;
 import net.floodlightcontroller.perfmon.PktInProcessingTime;
 import net.floodlightcontroller.restserver.IRestApiService;
@@ -62,8 +61,8 @@ import net.floodlightcontroller.core.IShutdownListener;
 import net.floodlightcontroller.core.IShutdownService;
 import net.floodlightcontroller.core.internal.IOFSwitchService;
 import net.floodlightcontroller.core.test.MockSwitchManager;
-
 import net.floodlightcontroller.core.IOFSwitchBackend;
+
 import org.projectfloodlight.openflow.protocol.OFControllerRole;
 import org.projectfloodlight.openflow.protocol.OFFactories;
 import org.projectfloodlight.openflow.protocol.OFFeaturesReply;
@@ -73,6 +72,9 @@ import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFPacketInReason;
 import org.projectfloodlight.openflow.protocol.OFVersion;
 import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.EthType;
+import org.projectfloodlight.openflow.types.IPv4Address;
+import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.protocol.OFPortDesc;
@@ -171,7 +173,7 @@ public class ControllerTest extends FloodlightTestCase {
         testPacket = new Ethernet()
         .setSourceMACAddress("00:44:33:22:11:00")
         .setDestinationMACAddress("00:11:22:33:44:55")
-        .setEtherType(Ethernet.TYPE_ARP)
+        .setEtherType(EthType.ARP)
         .setPayload(
                 new ARP()
                 .setHardwareType(ARP.HW_TYPE_ETHERNET)
@@ -179,10 +181,10 @@ public class ControllerTest extends FloodlightTestCase {
                 .setHardwareAddressLength((byte) 6)
                 .setProtocolAddressLength((byte) 4)
                 .setOpCode(ARP.OP_REPLY)
-                .setSenderHardwareAddress(Ethernet.toMACAddress("00:44:33:22:11:00"))
-                .setSenderProtocolAddress(IPv4.toIPv4AddressBytes("192.168.1.1"))
-                .setTargetHardwareAddress(Ethernet.toMACAddress("00:11:22:33:44:55"))
-                .setTargetProtocolAddress(IPv4.toIPv4AddressBytes("192.168.1.2")));
+                .setSenderHardwareAddress(MacAddress.of("00:44:33:22:11:00"))
+                .setSenderProtocolAddress(IPv4Address.of("192.168.1.1"))
+                .setTargetHardwareAddress(MacAddress.of("00:11:22:33:44:55"))
+                .setTargetProtocolAddress(IPv4Address.of("192.168.1.2")));
         byte[] testPacketSerialized = testPacket.serialize();
 
         // The specific factory can be obtained from the switch, but we don't have one
@@ -242,7 +244,7 @@ public class ControllerTest extends FloodlightTestCase {
         expect(sw.getSwitchDescription()).andReturn(description).atLeastOnce();
         expect(sw.getBuffers())
                 .andReturn(featuresReply.getNBuffers()).atLeastOnce();
-        expect(sw.getTables())
+        expect(sw.getNumTables())
                 .andReturn(featuresReply.getNTables()).atLeastOnce();
         expect(sw.getCapabilities())
                 .andReturn(featuresReply.getCapabilities()).atLeastOnce();
