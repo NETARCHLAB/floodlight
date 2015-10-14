@@ -9,7 +9,9 @@ import org.slf4j.LoggerFactory;
 import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPService;
+import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
+import edu.thu.ebgp.routing.BGPRoutingTable;
+import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;
 
 public class TimeoutTestResource extends ServerResource{
@@ -33,8 +35,8 @@ public class TimeoutTestResource extends ServerResource{
 	public String dosth(String prefix){
 		RoutingIndex routingIndex=new RoutingIndex();
 		routingIndex.setDstIp(prefix);
-		EGPKeepAlive egp=(EGPKeepAlive)getContext().getAttributes().get(IEGPService.class.getCanonicalName());
-		Integer pathLength=egp.getControllerMain().getTable().getShortestPathLength(routingIndex);
+		BGPRoutingTable table=(BGPRoutingTable)getContext().getAttributes().get(IBGPRoutingTableService.class.getCanonicalName());
+		Integer pathLength=table.getShortestPathLength(routingIndex);
 		StringBuilder sth=new StringBuilder();
 		sth.append(pathLength);
 		return sth.toString();

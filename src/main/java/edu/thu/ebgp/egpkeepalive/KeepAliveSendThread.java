@@ -6,9 +6,10 @@ import org.slf4j.LoggerFactory;
 
 public class KeepAliveSendThread extends Thread{
 
+	private static Logger logger = LoggerFactory.getLogger("egp.egpkeepalive.KeepAliveSendThread"); 
+
 	private String switchid;
 	private int outport;
-	private static Logger logger = LoggerFactory.getLogger("egp.egpkeepalive.KeepAliveSendThread"); 
 	
 	
 	public KeepAliveSendThread(String switchid, int outport) {

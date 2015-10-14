@@ -1,5 +1,7 @@
 package edu.thu.ebgp.routing;
 
+import org.projectfloodlight.openflow.types.IPv4AddressWithMask;
+
 import edu.thu.ebgp.config.LocalAsConfig;
 
 public class RoutingIndex {

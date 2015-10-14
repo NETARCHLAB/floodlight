@@ -2,10 +2,10 @@ package edu.thu.ebgp.routing;
 
 import java.util.Comparator;
 
-public class RoutingEntryComparator implements Comparator<RoutingTableEntry>{
+public class RoutingEntryComparator implements Comparator<FibTableEntry>{
 
     @Override
-    public int compare(RoutingTableEntry entry1, RoutingTableEntry entry2) {
+    public int compare(FibTableEntry entry1, FibTableEntry entry2) {
         if (entry1.getPath().size() != entry2.getPath().size())
             return entry1.getPath().size() - entry2.getPath().size();
         else

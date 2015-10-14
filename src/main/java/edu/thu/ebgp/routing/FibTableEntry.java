@@ -4,22 +4,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class RoutingTableEntry {
+public class FibTableEntry {
 
     private RoutingIndex index;
     private HopSwitch nextHop;
     private List<String> path;
-    private Integer timestamp;
 
-    public RoutingTableEntry(RoutingIndex index, HopSwitch nextHop, List<String> path, Integer timestamp) {
+    public FibTableEntry(RoutingIndex index, HopSwitch nextHop, List<String> path) {
         this.index = index;
         this.nextHop = nextHop;
         this.path = path;
-        this.timestamp = timestamp;
     }
 
-    public RoutingTableEntry(RoutingIndex index, HopSwitch nextHop, Integer timestamp) {
-        this.timestamp = timestamp;
+    public FibTableEntry(RoutingIndex index, HopSwitch nextHop) {
         this.nextHop = nextHop;
         this.index = index;
         this.path = null;
@@ -69,16 +66,9 @@ public class RoutingTableEntry {
         this.path = path;
     }
 
-    public Integer getTimestamp() {
-        return timestamp;
-    }
 
-    public void setTimestamp(Integer timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public RoutingTableEntry clone() {
-        RoutingTableEntry ret = new RoutingTableEntry(this.index, this.nextHop, this.timestamp);
+    public FibTableEntry clone() {
+        FibTableEntry ret = new FibTableEntry(this.index, this.nextHop);
         ret.path = null;
         if (this.path != null) {
             ret.path = new ArrayList<String> ();

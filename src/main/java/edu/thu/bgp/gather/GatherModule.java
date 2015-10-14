@@ -21,7 +21,7 @@ import edu.thu.bgp.gather.message.RequestMessage;
 import edu.thu.bgp.gather.web.GatherWebRoutable;
 import edu.thu.ebgp.controller.RemoteController;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPService;
+import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
@@ -65,7 +65,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 			throws FloodlightModuleException {
 		logger = LoggerFactory.getLogger(GatherModule.class);
 		restApi = context.getServiceImpl(IRestApiService.class);
-		bgp=(EGPKeepAlive)context.getServiceImpl(IEGPService.class);
+		bgp=(EGPKeepAlive)context.getServiceImpl(IEGPKeepAliveService.class);
 		threadPool=context.getServiceImpl(IThreadPoolService.class);
 		bgp.getControllerMain().getLocalId();
 		this.gatherHandler=new GatherEventHandler(context);

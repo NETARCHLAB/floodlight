@@ -4,6 +4,9 @@ import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.routing.HopSwitch;
 
 public class RemoteLink {
+	public enum LinkState {
+		UP,DOWN
+	}
 
     private String localSwitchId;
     private String localSwitchPort;
@@ -16,7 +19,7 @@ public class RemoteLink {
         this.localSwitchPort = config.getLocalSwitchPort();
         this.remoteSwitchId = config.getRemoteSwitchId();
         this.remoteSwitchPort = config.getRemoteSwitchPort();
-        this.state = new LinkState();
+        this.state = LinkState.DOWN;
     }
 
     public String getLocalSwitchId() {

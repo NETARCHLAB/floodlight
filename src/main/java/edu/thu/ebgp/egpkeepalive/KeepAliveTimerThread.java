@@ -25,22 +25,24 @@ public class KeepAliveTimerThread extends Thread {
 				String key = entry.getKey();
 				Long val = entry.getValue();
 				if (timer < (currentTime - val) / 1000) {
+					/*
 					if (EGPKeepAlive.statusmap.get(key).booleanValue() == true){
 						logger.warn("Link from {} is down!", key);
 						String switchPortArray[] = key.split(": ");
-						EGPKeepAlive.controllerMain.switchPortToRemoteController(switchPortArray[0], switchPortArray[1])
+						EGPKeepAlive.controllerMain.getRemoteControllerBySwitchPort(switchPortArray[0], switchPortArray[1])
 									.getReceiveEvent().addEvent(new LinkDownMessage());
 						EGPKeepAlive.statusmap.put(key, Boolean.valueOf(false));
-					}
+					}*/
 				}
 				else{
+					/*
 					if (EGPKeepAlive.statusmap.get(key).booleanValue() == false){
 						logger.warn("Link from {} is up!", key);
 						String switchPortArray[] = key.split(": ");
-						EGPKeepAlive.controllerMain.switchPortToRemoteController(switchPortArray[0], switchPortArray[1])
+						EGPKeepAlive.controllerMain.getRemoteControllerBySwitchPort(switchPortArray[0], switchPortArray[1])
 									.getReceiveEvent().addEvent(new LinkUpMessage());
 						EGPKeepAlive.statusmap.put(key, Boolean.valueOf(true));
-					}
+					}*/
 				}
 			}
 			

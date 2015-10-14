@@ -8,7 +8,7 @@ import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.*;
 import edu.thu.ebgp.routing.HopSwitch;
-import edu.thu.ebgp.routing.RoutingTableEntry;
+import edu.thu.ebgp.routing.FibTableEntry;
 
 import java.io.File;
 
@@ -36,26 +36,36 @@ public class StateMachineHandler {
     }
 
 
-    public void handleEvent(EBGPMessageBase event) throws OpenFailException {
-        logger.debug("Handle event " + event.getInfo());
-        if (event.getType() == EBGPMessageType.OPEN) {
-        	this.handleOpen((OpenMessage)event);
-        }else if (event.getType() == EBGPMessageType.NOTIFICATION) {
-        }else if (event.getType() == EBGPMessageType.KEEPALIVE) {
-            moveToState(ControllerState.ESTABLISHED);
-        }else if (event.getType() == EBGPMessageType.UPDATE) {
-            this.handleUpdate((UpdateMessage)event);
-        }else if (event.getType() == EBGPMessageType.LINKUP) {
-            controller.getListLink().get(0).getState().setLink(true);
-            HopSwitch hopSwitch = new HopSwitch(controller.getListLink().get(0).getRemoteSwitchId(), controller.getListLink().get(0).getRemoteSwitchPort());
-            controller.getTable().sendAllEntry(controller.getSendEvent(), hopSwitch);
-        }else if (event.getType() == EBGPMessageType.LINKDOWN) {
-            controller.getListLink().get(0).getState().setLink(false);
-            HopSwitch hopSwitch = new HopSwitch(controller.getListLink().get(0).getLocalSwitchId(), controller.getListLink().get(0).getLocalSwitchPort());
+    public void handleMessage(EBGPMessageBase msg) throws OpenFailException, NotificationException {
+        logger.debug("Handle event " + msg.getInfo());
+        HopSwitch hopSwitch;
+        switch(msg.getType()){
+        case OPEN:
+        	this.handleOpen((OpenMessage)msg);
+        	break;
+		case KEEPALIVE:
+			this.handleKeepAlive((KeepAliveMessage)msg);
+			break;
+		case LINKDOWN:
+            controller.getListLink().get(0).setState(RemoteLink.LinkState.DOWN);
+            hopSwitch = new HopSwitch(controller.getListLink().get(0).getLocalSwitchId(), controller.getListLink().get(0).getLocalSwitchPort());
             controller.getTable().linkDown(hopSwitch);
-        }else if(event.getType() == EBGPMessageType.GATHER){
-        	GatherMessage gather=(GatherMessage)event;
-        	EGPKeepAlive.onGatherMessage(controller.getId(), gather.getData());
+			break;
+		case LINKUP:
+            controller.getListLink().get(0).setState(RemoteLink.LinkState.UP);
+            hopSwitch = new HopSwitch(controller.getListLink().get(0).getRemoteSwitchId(), controller.getListLink().get(0).getRemoteSwitchPort());
+            //controller.getTable().sendAllEntry(controller.getSendEvent(), hopSwitch);
+			break;
+		case NOTIFICATION:
+			this.handleNotification((NotificationMessage)msg);
+			break;
+		case TIMEOUT:
+			break;
+		case UPDATE:
+			this.handleUpdate((UpdateMessage)msg);
+			break;
+		default:
+			break;
         }
     }
     
@@ -108,8 +118,8 @@ public class StateMachineHandler {
     		try {
     			ObjectMapper mapper = new ObjectMapper();
     			updateInfo = mapper.readValue(info, UpdateInfo.class);
-    			RoutingTableEntry entry = new RoutingTableEntry(updateInfo.getIndex(), updateInfo.getNextHop(), updateInfo.getPath(), updateInfo.getTimestamp());
-    			controller.getTable().addRoute(entry.getNextHop(), entry);
+    			FibTableEntry entry = new FibTableEntry(updateInfo.getIndex(), updateInfo.getNextHop(), updateInfo.getPath());
+    			controller.getTable().updateRoute(this.controller, updateInfo);
     		}  catch (Exception e){
     			e.printStackTrace();
     			return ;

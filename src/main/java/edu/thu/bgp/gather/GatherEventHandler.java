@@ -10,23 +10,27 @@ import org.slf4j.LoggerFactory;
 import edu.thu.bgp.gather.message.MessageBase;
 import edu.thu.bgp.gather.message.ReplyMessage;
 import edu.thu.bgp.gather.message.RequestMessage;
-import edu.thu.ebgp.controller.ControllerMain;
+import edu.thu.ebgp.controller.BGPControllerMain;
+import edu.thu.ebgp.controller.IBGPService;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPService;
+import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
+import edu.thu.ebgp.routing.BGPRoutingTable;
+import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;
 
 public class GatherEventHandler {
 	public static Logger log=LoggerFactory.getLogger(GatherEventHandler.class);
 	protected ViewState viewState;
-	protected ControllerMain ctrlMain;
+	protected BGPControllerMain ctrlMain;
+	protected BGPRoutingTable table;
 	protected GatherModule gatherModule;
 	protected GatherEventHandler self;
 	protected int unitTime=1;
 	public GatherEventHandler(FloodlightModuleContext context){
-		EGPKeepAlive bgp=(EGPKeepAlive)context.getServiceImpl(IEGPService.class);
 		gatherModule=(GatherModule)context.getServiceImpl(IGatherService.class);
+		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPService.class);
+		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
 		this.viewState=new ViewState();
-		this.ctrlMain=bgp.getControllerMain();
 		self=this;
 	}
 	class DoReplyRun implements Runnable{
@@ -75,7 +79,7 @@ public class GatherEventHandler {
 
 		RoutingIndex routingIndex=new RoutingIndex();
 		routingIndex.setDstIp(msg.getDstPrefix());
-		if(ctrlMain.containRoutingIndex(routingIndex)){
+		if(table.containLocalPrefix(routingIndex)){
 			viewState.linkSet.add(link);
 			ReplyMessage reply=new ReplyMessage();
 			reply.setSrcAS(msg.getSrcAS());
@@ -83,7 +87,7 @@ public class GatherEventHandler {
 			reply.setViewListBySet(viewState.linkSet);
 			sendTo(fromAS,reply);
 		}else{
-			Integer pathLength=ctrlMain.getTable().getShortestPathLength(routingIndex);
+			Integer pathLength=table.getShortestPathLength(routingIndex);
 			if(pathLength==null||msg.getTtl()<pathLength){
 				ReplyMessage reply=new ReplyMessage();
 				reply.setSrcAS(msg.getSrcAS());

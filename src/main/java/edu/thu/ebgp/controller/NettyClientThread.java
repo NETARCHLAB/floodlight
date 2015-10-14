@@ -12,6 +12,8 @@ import java.util.concurrent.Executors;
 import net.floodlightcontroller.packet.IPv4;
 
 import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -26,6 +28,7 @@ import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 
 public class NettyClientThread {
@@ -51,7 +54,17 @@ public class NettyClientThread {
     	});
     	for(RemoteController ctrl:controllerMap.values()){
     		if(ctrl.getCs().equals("c")){
-    			bootstrap.connect(new InetSocketAddress(IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort()));
+    			bootstrap.connect(new InetSocketAddress(IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort())).addListener(new ChannelFutureListener(){
+					@Override
+					public void operationComplete(ChannelFuture arg0)
+							throws Exception {
+						if(arg0.isSuccess()){
+							logger.info("success");
+						}else{
+						}
+					}
+    				
+    			});
     		}
     	}
     }
@@ -80,6 +93,9 @@ public class NettyClientThread {
 			} catch (OpenFailException e1) {
 				logger.info("Netty : controller-"+ctrl.getId()+" open fail recv msg - "+e1.getReceiveMessage());
 				ctx.getChannel().close();
+			} catch (NotificationException e2){
+				logger.info("controller-"+ctrl.getId()+" notification - "+e2.getReceiveMessage());
+				ctx.getChannel().close();
 			}
     	}
 
@@ -94,8 +110,8 @@ public class NettyClientThread {
 
     	@Override
     	public void exceptionCaught(ChannelHandlerContext ctx,ExceptionEvent e){
-    		e.getCause().printStackTrace();
-    		//logger.info(e.getCause().toString());
+    		//e.getCause().printStackTrace();
+    		//logger.warn(e.getCause().toString());
     	}
 
     }

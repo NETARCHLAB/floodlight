@@ -25,6 +25,7 @@ import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.OpenMessage;
 
@@ -58,6 +59,7 @@ public class NettyServerThread {
     	});
     	bootstrap.bind(new InetSocketAddress(localPort));
     }
+
     private class ServerHandler extends SimpleChannelHandler{
     	@Override
     	public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e){
@@ -83,6 +85,9 @@ public class NettyServerThread {
 			} catch (OpenFailException e1) {
 				logger.info("controller-"+ctrl.getId()+" open fail recv msg - "+e1.getReceiveMessage());
 				ctx.getChannel().close();
+			} catch (NotificationException e2){
+				logger.info("controller-"+ctrl.getId()+" notification - "+e2.getReceiveMessage());
+				ctx.getChannel().close();
 			}
     	}
     	
@@ -95,7 +100,7 @@ public class NettyServerThread {
     	
     	@Override
     	public void exceptionCaught(ChannelHandlerContext ctx,ExceptionEvent e){
-    		logger.info(e.getCause().toString());
+    		logger.warn(e.getCause().toString());
     	}
     }
 }
