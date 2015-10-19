@@ -7,7 +7,7 @@ public class GatherMessage extends EBGPMessageBase {
         this.setType(EBGPMessageType.GATHER);
         this.data=s1;
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "GATHER "+data;
     }
     public String getData(){

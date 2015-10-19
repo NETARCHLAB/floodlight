@@ -5,7 +5,7 @@ public class KeepAliveMessage extends EBGPMessageBase {
     public KeepAliveMessage() {
         this.setType(EBGPMessageType.KEEPALIVE);
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "KEEPALIVE";
     }
 }

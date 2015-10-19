@@ -3,7 +3,7 @@ package edu.thu.bgp.gather.message;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RoutingMessage extends MessageBase{
+public class RoutingMessage extends GatherMessageBase{
 	private List<String> asList;
 	public RoutingMessage(){
 		asList=new LinkedList<String>();

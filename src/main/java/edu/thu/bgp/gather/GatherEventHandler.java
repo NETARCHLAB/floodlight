@@ -7,11 +7,11 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import edu.thu.bgp.gather.message.MessageBase;
+import edu.thu.bgp.gather.message.GatherMessageBase;
 import edu.thu.bgp.gather.message.ReplyMessage;
 import edu.thu.bgp.gather.message.RequestMessage;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPService;
+import edu.thu.ebgp.controller.IBGPStateService;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
 import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
@@ -28,7 +28,7 @@ public class GatherEventHandler {
 	protected int unitTime=1;
 	public GatherEventHandler(FloodlightModuleContext context){
 		gatherModule=(GatherModule)context.getServiceImpl(IGatherService.class);
-		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPService.class);
+		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
 		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
 		this.viewState=new ViewState();
 		self=this;
@@ -124,7 +124,7 @@ public class GatherEventHandler {
 	}
 	public void onTimeout(){
 	}
-	public void sendTo(String toAS,MessageBase msg){
+	public void sendTo(String toAS,GatherMessageBase msg){
 		ctrlMain.getControllerMap().get(toAS).getChannel().write("GATHER"+msg.toJsonString());
 	}
 	public Set<AsLink> getView(){

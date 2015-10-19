@@ -6,7 +6,7 @@ public class LinkDownMessage extends EBGPMessageBase{
     public LinkDownMessage() {
         this.setType(EBGPMessageType.LINKDOWN);
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "LINKDOWN";
     }
 

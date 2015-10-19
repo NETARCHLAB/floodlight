@@ -7,7 +7,7 @@ public class EBGPMessageBase {
     public EBGPMessageBase() {
         this.type = EBGPMessageType.UNDEFINED;
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "UNDEFINED";
     }
 
@@ -20,17 +20,28 @@ public class EBGPMessageBase {
     }
 
 
-    public static EBGPMessageBase createEvent(String sarray[]){
-    	if (sarray[0].equals("OPEN")) {
-    		return new OpenMessage(sarray[1]);
-    	}else if (sarray[0].equals("KEEPALIVE")) {
-    		return new KeepAliveMessage();
-    	}else if (sarray[0].equals("UPDATE")) {
-    		return new UpdateMessage(sarray[1]);
-    	}else if (sarray[0].equals("GATHER")){
-    		return new GatherMessage(sarray[1]);
+    public static EBGPMessageBase createEvent(String line){
+    	Integer space=line.indexOf(" ");
+    	if(space<0){
+    		if(line.equals("KEEPALIVE")){
+    			return new KeepAliveMessage();
+    		}else{
+    			return null;
+    		}
     	}else{
-    		return null;
+    		String type=line.substring(0, space);
+    		String data=line.substring(space+1);
+    		if (type.equals("OPEN")) {
+    			return new OpenMessage(data);
+    		}else if (type.equals("KEEPALIVE")) {
+    			return new KeepAliveMessage();
+    		}else if (type.equals("UPDATE")) {
+    			return new UpdateMessage(data);
+    		}else if (type.equals("GATHER")){
+    			return new GatherMessage(data);
+    		}else{
+    			return null;
+    		}
     	}
     }
 

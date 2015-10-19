@@ -7,6 +7,7 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.packet.IPv4;
 
 import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,6 @@ import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.EBGPMessageBase;
-import edu.thu.ebgp.message.ControllerEventList;
 import edu.thu.ebgp.message.EBGPMessageType;
 import edu.thu.ebgp.message.OpenMessage;
 import edu.thu.ebgp.routing.BGPRoutingTable;
@@ -31,28 +31,29 @@ public class RemoteController {
 
     private Integer ip;
     private String id;
-    private String cs;
+    private boolean isClient;
     private int port;
     private List<RemoteLink> listLink = new ArrayList<RemoteLink>();
     private StateMachineHandler stateMachine;
-    private Channel channel=null;
     private String localId;
 
     protected GatherModule gather;
     protected BGPControllerMain ctrlMain;
     protected BGPRoutingTable table;
 
+    private Channel channel=null;
+    private ChannelFuture connectFuture=null;
 
 
     public RemoteController(RemoteControllerConfig config,FloodlightModuleContext context){
     	gather=(GatherModule)context.getServiceImpl(IGatherService.class);
 		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
-		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPService.class);
+		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
 
 		this.localId=ctrlMain.getLocalId();
         this.ip = IPv4.toIPv4Address(config.getIp());
         this.id = config.getId();
-        this.cs = config.getCs();
+        this.isClient = config.getCs().equals("c")?true:false;
         this.port = config.getPort();
         for (RemoteControllerLinkConfig c:config.getListLink()) {
             listLink.add(new RemoteLink(c));
@@ -68,8 +69,11 @@ public class RemoteController {
         return id;
     }
 
-    public String getCs() {
-        return cs;
+    public boolean isClient(){
+    	return isClient;
+    }
+    public boolean isServer(){
+    	return !isClient;
     }
 
     public int getPort() {
@@ -101,30 +105,54 @@ public class RemoteController {
         return stateMachine;
     }
 
-    public void handleConnected(ChannelHandlerContext ctx){
-    	channel=ctx.getChannel();
-    	channel.write(new OpenMessage(localId).getInfo());
+    public void handleStartConnect(ChannelFuture future){
+    	connectFuture=future;
+    	stateMachine.moveToState(ControllerState.CONNECT);
+    }
+    public void handleCancelConnect(){
+    	if(stateMachine.getControllerState()==ControllerState.CONNECT){
+    		if(!connectFuture.isDone()){
+    			connectFuture.cancel();
+    			connectFuture=null;
+    		}
+    	}
+    	stateMachine.moveToState(ControllerState.ACTIVE);
+    }
+    public boolean notConnected(){
+    	if(stateMachine.getControllerState()==ControllerState.CONNECT||
+    			stateMachine.getControllerState()==ControllerState.ACTIVE||
+    			stateMachine.getControllerState()==ControllerState.IDLE){
+    		return true;
+    	}else{
+    		return false;
+    	}
+    }
+
+    public void handleConnected(Channel channel){
+    	this.channel=channel;
+    	this.connectFuture=null;
+    	channel.write(new OpenMessage(localId).getWritable());
     	stateMachine.moveToState(ControllerState.OPENSENT);
     }
 
     public void handleClosed(){
-    	channel=null;
+    	this.channel=null;
+    	this.connectFuture=null;
     	stateMachine.moveToState(ControllerState.IDLE);
     }
     
     public void handleMessage(String line) throws OpenFailException, NotificationException{
-    	String sarray[] = line.split(" ");
-    	if (sarray.length > 0){
-    		EBGPMessageBase ce=EBGPMessageBase.createEvent(sarray);
-    		if(ce.getType()==EBGPMessageType.GATHER){
-    			//TODO change String to GatherMessage
-    			gather.onMessage(this.id,line);
+    		EBGPMessageBase msg=EBGPMessageBase.createEvent(line);
+    		if(msg==null){
+    			logger.error("message error");
     		}else{
-    			stateMachine.handleMessage(ce);
+    			if(msg.getType()==EBGPMessageType.GATHER){
+    				//TODO change String to GatherMessage
+    				gather.onMessage(this.id,line);
+    			}else{
+    				stateMachine.handleMessage(msg);
+    			}
     		}
-    	}else{
-    		logger.error("message error");
-    	}
     }
     
     public Channel getChannel(){
@@ -133,5 +161,22 @@ public class RemoteController {
 
     public void delete(){
     	//TODO
+    }
+
+    public void sendMessage(EBGPMessageBase msg){
+    	channel.write(msg.getWritable());
+    }
+    
+    public String toString(){
+    	StringBuilder sb=new StringBuilder();
+    	sb.append("Controller{");
+    	sb.append("id:");
+    	sb.append(id);
+    	sb.append(",addr:");
+    	sb.append(IPv4.fromIPv4Address(this.ip));
+    	sb.append("-");
+    	sb.append(this.port);
+    	sb.append("}");
+    	return sb.toString();
     }
 }

@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.thu.bgp.gather.AsLink;
 
-public class ReplyMessage extends MessageBase{
+public class ReplyMessage extends GatherMessageBase{
 	private String srcAS=null;
 	private List<String> viewList=null;
 	private String dstPrefix=null;
@@ -60,7 +60,7 @@ public class ReplyMessage extends MessageBase{
 		rm.setViewList(l);
 		System.out.println(rm.toJsonString());
 		ObjectMapper om=new ObjectMapper();
-		ReplyMessage r=(ReplyMessage)MessageBase.createFromJson(rm.toJsonString());
+		ReplyMessage r=(ReplyMessage)GatherMessageBase.createFromJson(rm.toJsonString());
 		System.out.println(r.toString());
 	}
 }

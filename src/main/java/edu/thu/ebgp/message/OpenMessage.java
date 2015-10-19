@@ -2,7 +2,7 @@ package edu.thu.ebgp.message;
 
 
 public class OpenMessage extends EBGPMessageBase{
-	public String id;
+	private String id;
     public OpenMessage(String id) {
         this.setType(EBGPMessageType.OPEN);
         this.id=id;
@@ -10,7 +10,7 @@ public class OpenMessage extends EBGPMessageBase{
     public String getId(){
     	return id;
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "OPEN "+id;
     }
 }

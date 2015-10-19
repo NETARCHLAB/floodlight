@@ -5,7 +5,7 @@ public class LinkUpMessage extends EBGPMessageBase{
     public LinkUpMessage() {
         this.setType(EBGPMessageType.LINKUP);
     }
-    public String getInfo(){
+    public String getWritable(){
     	return "LINKUP";
     }
 

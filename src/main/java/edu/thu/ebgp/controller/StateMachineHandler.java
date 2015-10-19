@@ -37,7 +37,7 @@ public class StateMachineHandler {
 
 
     public void handleMessage(EBGPMessageBase msg) throws OpenFailException, NotificationException {
-        logger.debug("Handle event " + msg.getInfo());
+        logger.debug("Handle event " + msg.getWritable());
         HopSwitch hopSwitch;
         switch(msg.getType()){
         case OPEN:
@@ -77,22 +77,24 @@ public class StateMachineHandler {
     	case IDLE:
     	case CONNECT:
     	case ACTIVE:
+    		logger.warn("Controller state error when handle open message.");
     	case OPENSENT:
     		if(msg.getId().equals(controller.getLocalId())){
     			moveToState(ControllerState.OPENCONFIRM);
-    			controller.getChannel().write(new KeepAliveMessage().getInfo());
+    			controller.sendMessage(new KeepAliveMessage());
     		}else{
-    			controller.getChannel().write(new NotificationMessage().getInfo());
-    			throw new OpenFailException(msg.getInfo());
+    			controller.sendMessage(new NotificationMessage());
+    			throw new OpenFailException(msg.getWritable());
     		}
     		break;
     	default:
     		return ;
     	}
     }
+
     public void handleNotification(NotificationMessage msg) throws NotificationException{
     	moveToState(ControllerState.IDLE);
-    	throw new NotificationException(msg.getInfo());
+    	throw new NotificationException("receive : "+msg.getWritable());
     }
     /**
      * handle keep alive message from it's neighbor
@@ -102,7 +104,7 @@ public class StateMachineHandler {
     	switch(state){
     	case OPENCONFIRM:
     		moveToState(ControllerState.ESTABLISHED);
-    		controller.getChannel().write(new KeepAliveMessage().getInfo());
+    		controller.sendMessage(new KeepAliveMessage());
     		break;
     	default:
     		return ;
@@ -113,12 +115,12 @@ public class StateMachineHandler {
     	switch(state){
     	case ESTABLISHED:
     		long time1 = System.currentTimeMillis();
-    		String info = updateEvent.getInfo().split(" ")[1];
+    		String info = updateEvent.getWritable().split(" ")[1];
     		UpdateInfo updateInfo;
     		try {
     			ObjectMapper mapper = new ObjectMapper();
     			updateInfo = mapper.readValue(info, UpdateInfo.class);
-    			FibTableEntry entry = new FibTableEntry(updateInfo.getIndex(), updateInfo.getNextHop(), updateInfo.getPath());
+    			//FibTableEntry entry = new FibTableEntry(updateInfo.getIndex(), updateInfo.getNextHop(), updateInfo.getPath());
     			controller.getTable().updateRoute(this.controller, updateInfo);
     		}  catch (Exception e){
     			e.printStackTrace();
@@ -129,7 +131,7 @@ public class StateMachineHandler {
     		logger.info("UPDATE Handle Time: {}", handleTime);
     		break;
     	default:
-    		logger.info("receive update in wrong state : "+state.toString());
+    		logger.warn("Controller receive update in wrong state : "+state.toString());
     		break;
     	}
     }

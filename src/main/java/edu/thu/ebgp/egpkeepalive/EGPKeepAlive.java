@@ -46,7 +46,7 @@ import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
 import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPService;
+import edu.thu.ebgp.controller.IBGPStateService;
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import net.floodlightcontroller.core.IOFMessageListener;
@@ -218,7 +218,7 @@ public class EGPKeepAlive implements IFloodlightModule, IOFMessageListener,
 		floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
 		switchService = context.getServiceImpl(IOFSwitchService.class);
 		logger = LoggerFactory.getLogger("egp.egpkeepalive.EGPKeepAlive");
-		controllerMain = (BGPControllerMain)context.getServiceImpl(IBGPService.class);
+		controllerMain = (BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
 		threadPool = context.getServiceImpl(IThreadPoolService.class);
 		gather=context.getServiceImpl(IGatherService.class);
 	}

@@ -22,22 +22,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
+import net.floodlightcontroller.core.util.SingletonTask;
+import net.floodlightcontroller.threadpool.IThreadPoolService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class BGPControllerMain implements IFloodlightModule,IBGPService{
+public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
 
     private static Logger logger = LoggerFactory.getLogger(BGPControllerMain.class);
 
 
-	private static final String configFileName = "target/config.txt";
+	public static final String configFileName = "target/config.txt";
+    public static final int CONNECT_RETRY_TIME_INTERVAL = 5;
 
     private Map<String,RemoteController> controllerMap=new ConcurrentHashMap<String,RemoteController>();
     private AllConfig allConfig;
@@ -47,6 +52,9 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
 
     private NettyServerThread serverThread;
     private NettyClientThread clientThread;
+
+	protected IThreadPoolService threadPool;
+	protected SingletonTask retryConnectTask;
 
     public String getLocalId(){
     	return localId;
@@ -103,19 +111,6 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
     }
 
 
-    private void createServer() {
-        logger.info("Creating listening sockets...");
-        serverThread = new NettyServerThread(localPort, controllerMap);
-        serverThread.start();
-        logger.info("Creating listening sockets successfully");
-    }
-
-    private void createClient() {
-        logger.info("Creating sending sockets...");
-        clientThread = new NettyClientThread(controllerMap);
-        clientThread.start();
-        logger.info("Creating sending sockets successfully");
-    }
 
     public RemoteController getRemoteControllerBySwitchPort(String switchid, String port){
     	for (RemoteController controller:controllerMap.values()) {
@@ -132,7 +127,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
 	public Collection<Class<? extends IFloodlightService>> getModuleServices() {
 		Collection<Class<? extends IFloodlightService>> l =
 				new ArrayList<Class<? extends IFloodlightService>>();
-		l.add(IBGPService.class);
+		l.add(IBGPStateService.class);
 		return l;
 	}
 
@@ -141,7 +136,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
 
 		Map<Class<? extends IFloodlightService>, IFloodlightService> m =
 		new HashMap<Class<? extends IFloodlightService>, IFloodlightService>();
-		m.put(IBGPService.class, this);
+		m.put(IBGPStateService.class, this);
 		return m;
 	}
 
@@ -160,6 +155,8 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
         }
         this.localPort = Integer.parseInt(allConfig.getLocalPort());
         this.localId = allConfig.getLocalId();
+
+		threadPool = context.getServiceImpl(IThreadPoolService.class);
 	}
 
 
@@ -174,8 +171,42 @@ public class BGPControllerMain implements IFloodlightModule,IBGPService{
         }
         createServer(); // create listen thread
         createClient();
+        createRetryThread();
         //cliStart();
 	}
+
+    private void createServer() {
+        logger.info("Creating listening sockets...");
+        serverThread = new NettyServerThread(localPort, controllerMap);
+        serverThread.start();
+        logger.info("Creating listening sockets successfully");
+    }
+
+    private void createClient() {
+        logger.info("Creating sending sockets...");
+        clientThread = new NettyClientThread(controllerMap);
+        clientThread.start();
+        logger.info("Creating sending sockets successfully");
+    }
+    private void createRetryThread(){
+		// start thread TODO
+		ScheduledExecutorService ses = threadPool.getScheduledExecutor();
+		retryConnectTask = new SingletonTask(ses, new Runnable() {
+			@Override
+			public void run() {
+				try {
+					clientThread.retry();
+				} catch (Exception e) {
+					logger.error("Exception in retryConnectThread.", e);
+				} finally {
+					//if (!shuttingDown) {
+						// null role implies HA mode is not enabled.
+					retryConnectTask.reschedule(CONNECT_RETRY_TIME_INTERVAL, TimeUnit.SECONDS);
+				}
+			}
+		});
+		retryConnectTask.reschedule(CONNECT_RETRY_TIME_INTERVAL, TimeUnit.SECONDS);
+    }
 
 	@Override
 	public AllConfig getAllConfig(){

@@ -24,7 +24,7 @@ public class UpdateMessage extends EBGPMessageBase {
         this.setType(EBGPMessageType.UPDATE);
     }
 
-    public String getInfo(){
+    public String getWritable(){
     	return "UPDATE "+updateStr;
     }
 

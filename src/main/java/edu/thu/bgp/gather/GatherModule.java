@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import edu.thu.bgp.gather.message.MessageBase;
+import edu.thu.bgp.gather.message.GatherMessageBase;
 import edu.thu.bgp.gather.message.ReplyMessage;
 import edu.thu.bgp.gather.message.RequestMessage;
 import edu.thu.bgp.gather.web.GatherWebRoutable;
@@ -86,7 +86,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	@Override
 	public synchronized void onMessage(String fromAS,String message) {
 		logger.info("GATHER:["+fromAS+"]"+message);
-		MessageBase msg=MessageBase.createFromJson(message);
+		GatherMessageBase msg=GatherMessageBase.createFromJson(message);
 		if(msg.getType().equals("reply")){
 			gatherHandler.onReply(fromAS,(ReplyMessage)msg);
 		}else if(msg.getType().equals("request")){

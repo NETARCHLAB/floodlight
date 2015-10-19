@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.config.LocalAsConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPService;
+import edu.thu.ebgp.controller.IBGPStateService;
 import edu.thu.ebgp.controller.RemoteController;
 import edu.thu.ebgp.message.UpdateInfo;
 
@@ -127,7 +127,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	@Override
 	public void init(FloodlightModuleContext context)
 			throws FloodlightModuleException {
-		bgpController=(BGPControllerMain)context.getServiceImpl(IBGPService.class);
+		bgpController=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
 		switchService=context.getServiceImpl(IOFSwitchService.class);
 	}
 

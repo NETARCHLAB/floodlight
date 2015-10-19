@@ -4,7 +4,7 @@ import java.io.IOException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class RequestMessage extends MessageBase{
+public class RequestMessage extends GatherMessageBase{
 	private String srcAS;
 	private String dstPrefix;
 	private int ttl;

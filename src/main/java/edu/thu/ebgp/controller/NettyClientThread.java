@@ -35,11 +35,24 @@ public class NettyClientThread {
 
     private static Logger logger = LoggerFactory.getLogger("egp.controller.ClientThread");
 
-    Map<String,RemoteController> controllerMap;
-    ClientBootstrap bootstrap;
+    private Map<String,RemoteController> controllerMap;
+    private ClientBootstrap bootstrap;
 
     NettyClientThread(Map<String,RemoteController> map) {
-        this.controllerMap= map;
+        this.controllerMap=map;
+    }
+
+    public void retry(){
+    	for(RemoteController ctrl:controllerMap.values()){
+    		if(ctrl.isClient()){
+    			if(ctrl.notConnected()){
+    				ctrl.handleCancelConnect();
+    				ChannelFuture future=bootstrap.connect(new InetSocketAddress(IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort()));
+    				logger.info("try connect to :{}-{}",new Object[]{IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort()});
+    				ctrl.handleStartConnect(future);
+    			}
+    		}
+    	}
     }
 
     public void start(){
@@ -53,18 +66,10 @@ public class NettyClientThread {
     		}
     	});
     	for(RemoteController ctrl:controllerMap.values()){
-    		if(ctrl.getCs().equals("c")){
-    			bootstrap.connect(new InetSocketAddress(IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort())).addListener(new ChannelFutureListener(){
-					@Override
-					public void operationComplete(ChannelFuture arg0)
-							throws Exception {
-						if(arg0.isSuccess()){
-							logger.info("success");
-						}else{
-						}
-					}
-    				
-    			});
+    		if(ctrl.isClient()){
+    			ChannelFuture future=bootstrap.connect(new InetSocketAddress(IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort()));
+    			logger.info("try connect to :{}-{}",new Object[]{IPv4.fromIPv4Address(ctrl.getIp()),ctrl.getPort()});
+    			ctrl.handleStartConnect(future);
     		}
     	}
     }
@@ -74,10 +79,10 @@ public class NettyClientThread {
     		InetSocketAddress addr=(InetSocketAddress)ctx.getChannel().getRemoteAddress();
     		Integer remoteIp=IPv4.toIPv4Address(addr.getAddress().getAddress());
     		for(RemoteController ctrl:controllerMap.values()){
-    			if(ctrl.getIp()==remoteIp && ctrl.getCs()=="c"){
-    				logger.info(ctrl.getId()+" connected");
+    			if(ctrl.getIp()==remoteIp && ctrl.isClient()){
+    				logger.info("controller "+ctrl.getId()+"("+IPv4.fromIPv4Address(remoteIp)+") connected.");
     				ctx.setAttachment(ctrl);
-    				ctrl.handleConnected(ctx);
+    				ctrl.handleConnected(ctx.getChannel());
     				return ;
     			}
     		}
@@ -91,7 +96,7 @@ public class NettyClientThread {
     		try {
 				ctrl.handleMessage((String)e.getMessage());
 			} catch (OpenFailException e1) {
-				logger.info("Netty : controller-"+ctrl.getId()+" open fail recv msg - "+e1.getReceiveMessage());
+				logger.info("controller-"+ctrl.getId()+" open fail recv msg - "+e1.getReceiveMessage());
 				ctx.getChannel().close();
 			} catch (NotificationException e2){
 				logger.info("controller-"+ctrl.getId()+" notification - "+e2.getReceiveMessage());
@@ -106,12 +111,15 @@ public class NettyClientThread {
     			Integer ip=IPv4.toIPv4Address(addr.getAddress().getAddress());
     			logger.info("channel close:{}",IPv4.fromIPv4Address(ip));
     		}
+    		RemoteController ctrl=(RemoteController)ctx.getAttachment();
+    		if(ctrl!=null){
+    			ctrl.handleClosed();
+    		}
     	}
 
     	@Override
     	public void exceptionCaught(ChannelHandlerContext ctx,ExceptionEvent e){
-    		//e.getCause().printStackTrace();
-    		//logger.warn(e.getCause().toString());
+    		logger.warn(e.getCause().toString());
     	}
 
     }

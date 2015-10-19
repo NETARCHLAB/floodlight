@@ -66,10 +66,10 @@ public class NettyServerThread {
     		InetSocketAddress addr=(InetSocketAddress)ctx.getChannel().getRemoteAddress();
     		Integer remoteIp=IPv4.toIPv4Address(addr.getAddress().getAddress());
     		for(RemoteController ctrl:controllerMap.values()){
-    			if(ctrl.getIp()==remoteIp && ctrl.getCs()=="s"){
-    				logger.info(ctrl.getId()+" connected");
+    			if(ctrl.getIp()==remoteIp && ctrl.isServer()){
+    				logger.info("controller "+ctrl.getId()+"("+IPv4.fromIPv4Address(remoteIp)+") connected.");
     				ctx.setAttachment(ctrl);
-    				ctrl.handleConnected(ctx);
+    				ctrl.handleConnected(ctx.getChannel());
     				return ;
     			}
     		}
@@ -94,8 +94,14 @@ public class NettyServerThread {
     	@Override
     	public void channelClosed(ChannelHandlerContext ctx,ChannelStateEvent e){
     		InetSocketAddress addr=(InetSocketAddress)ctx.getChannel().getRemoteAddress();
-    		Integer ip=IPv4.toIPv4Address(addr.getAddress().getAddress());
-    		logger.info("channel close:{}",IPv4.fromIPv4Address(ip));
+    		if(addr!=null){
+    			Integer ip=IPv4.toIPv4Address(addr.getAddress().getAddress());
+    			logger.info("channel close:{}",IPv4.fromIPv4Address(ip));
+    		}
+    		RemoteController ctrl=(RemoteController)ctx.getAttachment();
+    		if(ctrl!=null){
+    			ctrl.handleClosed();
+    		}
     	}
     	
     	@Override
