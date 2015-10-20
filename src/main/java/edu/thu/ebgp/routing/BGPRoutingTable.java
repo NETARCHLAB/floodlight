@@ -8,6 +8,7 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
+import net.floodlightcontroller.restserver.IRestApiService;
 
 import org.projectfloodlight.openflow.protocol.OFFactory;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
@@ -36,9 +37,11 @@ import org.slf4j.LoggerFactory;
 import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.config.LocalAsConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPStateService;
+import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.controller.RemoteController;
 import edu.thu.ebgp.message.UpdateInfo;
+import edu.thu.ebgp.message.UpdateMessage;
+import edu.thu.ebgp.web.BGPWebRoutable;
 
 // route in : 1. 记录来源  2. 记录destination，按照destination分组
 // map<source, list<tableEntry>>
@@ -127,14 +130,19 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	@Override
 	public void init(FloodlightModuleContext context)
 			throws FloodlightModuleException {
-		bgpController=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
+		bgpController=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		switchService=context.getServiceImpl(IOFSwitchService.class);
 	}
 
     public void updateRoute(RemoteController rCtrl,UpdateInfo info){
     	// 0. add in rib in 
     	RibTableEntry ribEntry=new RibTableEntry(info.getIndex(),info.getPath());
-    	ribin.getOrDefault(info.getIndex(), new RibEntryPriorityQueue()).update(ribEntry);
+    	RibEntryPriorityQueue queue=ribin.get(info.getIndex());
+    	if(queue==null){
+    		queue=new RibEntryPriorityQueue();
+    		ribin.put(info.getIndex(), queue);
+    	}
+    	queue.update(ribEntry);
 
     	// compare with routing path
     	FibTableEntry oldFibEntry=fib.get(info.getIndex());
@@ -142,17 +150,27 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     		// shorter path
 
     		// 1. update fib
-    		HopSwitch hopSwitch=rCtrl.getListLink().get(0).getLocalSwitch();
+    		HopSwitch hopSwitch=rCtrl.getDefaultLink().getLocalSwitch();
     		FibTableEntry newFibEntry=new FibTableEntry(info.getIndex(),hopSwitch,info.getPath());
     		fib.put(info.getIndex(),newFibEntry);
+
     		// 2. dump flow
     		modifyFlowTable(oldFibEntry.getNextHop(), newFibEntry.getIndex(), newFibEntry);
 
     		// 3. update ribout
     		RibTableEntry riboutEntry=ribEntry.clone();
     		riboutEntry.getPath().add(localId);
-    		// 4. send route to neighbor TODO
-    		
+    		ribout.put(riboutEntry.getIndex(), riboutEntry);
+
+    		// 4. send route to neighbor
+    		for(RemoteController sendCtrl:bgpController.getControllerMap().values()){
+    			if(sendCtrl.getId()!=rCtrl.getId()){
+    				HopSwitch localHop=sendCtrl.getDefaultLink().getLocalSwitch();
+    				UpdateInfo sendInfo=new UpdateInfo(riboutEntry.getIndex(),localHop,riboutEntry.getPath(),(int)System.currentTimeMillis());
+    				UpdateMessage sendMsg=new UpdateMessage(sendInfo);
+    				sendCtrl.sendMessage(sendMsg);
+    			}
+    		}
     	}else{
     		// path not short enough, no update, return ;
     		return ;
@@ -174,7 +192,9 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
         	ribout.put(routingIndex,ribEntry);
         	localPrefixTable.add(routingIndex);
         }
-        logger.info("Init routing table end");
+		IRestApiService restApi = context.getServiceImpl(IRestApiService.class);
+		restApi.addRestletRoutable(new BGPWebRoutable());
+        logger.info("Start routing table end");
 	}
 
 	
@@ -397,4 +417,15 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		}
 		
 	}
+
+    public Map<RoutingIndex, RibEntryPriorityQueue> getRibin(){
+    	return ribin;
+    }
+    public Map<RoutingIndex, RibTableEntry> getRibout(){
+    	return ribout;
+    }
+    public Map<RoutingIndex, FibTableEntry> getFib(){
+    	return fib;
+    }
+	
 }

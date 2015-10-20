@@ -5,9 +5,9 @@ import java.io.IOException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class GatherMessageBase {
+public class GatherBase {
 	protected String type="base";
-	protected GatherMessageBase(){
+	protected GatherBase(){
 	}
 	public String toJsonString(){
         ObjectMapper mapper = new ObjectMapper();
@@ -20,16 +20,16 @@ public class GatherMessageBase {
             return s;
         }
 	}
-	public static GatherMessageBase createFromJson(String str){
+	public static GatherBase createFromJson(String str){
 		ObjectMapper om=new ObjectMapper();
-		GatherMessageBase re=null;
+		GatherBase re=null;
 		try {
 			JsonNode jn=om.readTree(str);
 			String jnType=jn.get("type").asText();
 			if(jnType.equals("reply")){
-				return om.treeToValue(jn, ReplyMessage.class);
+				return om.treeToValue(jn, GatherReply.class);
 			}else if(jnType.equals("request")){
-				return om.treeToValue(jn, RequestMessage.class);
+				return om.treeToValue(jn, GatherRequest.class);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

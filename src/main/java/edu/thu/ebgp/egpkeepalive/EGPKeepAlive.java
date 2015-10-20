@@ -9,9 +9,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.projectfloodlight.openflow.protocol.OFFactory;
-import org.projectfloodlight.openflow.protocol.OFFlowAdd;
-import org.projectfloodlight.openflow.protocol.OFFlowDelete;
-import org.projectfloodlight.openflow.protocol.OFFlowDeleteStrict;
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFPacketOut;
@@ -46,7 +43,7 @@ import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
 import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPStateService;
+import edu.thu.ebgp.controller.IBGPConnectService;
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import net.floodlightcontroller.core.IOFMessageListener;
@@ -72,7 +69,7 @@ public class EGPKeepAlive implements IFloodlightModule, IOFMessageListener,
 	private static IOFSwitchService switchService;
 	private static Logger logger;
 
-	protected static BGPControllerMain controllerMain;
+	protected BGPControllerMain controllerMain;
 	protected static HashMap<String, Long> timermap = new HashMap<String, Long>();
 	protected static HashMap<String, Boolean> statusmap = new HashMap<String, Boolean>();
 	protected IGatherService gather;
@@ -218,7 +215,7 @@ public class EGPKeepAlive implements IFloodlightModule, IOFMessageListener,
 		floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
 		switchService = context.getServiceImpl(IOFSwitchService.class);
 		logger = LoggerFactory.getLogger("egp.egpkeepalive.EGPKeepAlive");
-		controllerMain = (BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
+		controllerMain = (BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		threadPool = context.getServiceImpl(IThreadPoolService.class);
 		gather=context.getServiceImpl(IGatherService.class);
 	}
@@ -247,10 +244,6 @@ public class EGPKeepAlive implements IFloodlightModule, IOFMessageListener,
 				}
 			}
 		});*/
-	}
-	
-	public BGPControllerMain getControllerMain(){
-		return this.controllerMain;
 	}
 	
 	public static void SendPacketOut(String switchid, int outport) {
@@ -304,10 +297,6 @@ public class EGPKeepAlive implements IFloodlightModule, IOFMessageListener,
 		 
 		/* Write the packet to the switch via an IOFSwitch instance. */
 		mySwitch.write(myPacketOut);
-	}
-	
-	public static void sendGatherMessage(String toAS,String message){
-		controllerMain.getControllerMap().get(toAS).getChannel().write(message);
 	}
 
 }

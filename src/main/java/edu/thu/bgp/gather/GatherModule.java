@@ -15,10 +15,13 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import edu.thu.bgp.gather.message.GatherMessageBase;
-import edu.thu.bgp.gather.message.ReplyMessage;
-import edu.thu.bgp.gather.message.RequestMessage;
+import edu.thu.bgp.gather.message.GatherBase;
+import edu.thu.bgp.gather.message.GatherMessage;
+import edu.thu.bgp.gather.message.GatherReply;
+import edu.thu.bgp.gather.message.GatherRequest;
 import edu.thu.bgp.gather.web.GatherWebRoutable;
+import edu.thu.ebgp.controller.BGPControllerMain;
+import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.controller.RemoteController;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
 import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
@@ -35,6 +38,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	protected static Logger logger;
 	protected IRestApiService restApi;
 	protected EGPKeepAlive bgp;
+	protected BGPControllerMain bgpCtrlMain;
 	protected GatherEventHandler gatherHandler;
 	protected IThreadPoolService threadPool;
 
@@ -67,7 +71,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 		restApi = context.getServiceImpl(IRestApiService.class);
 		bgp=(EGPKeepAlive)context.getServiceImpl(IEGPKeepAliveService.class);
 		threadPool=context.getServiceImpl(IThreadPoolService.class);
-		bgp.getControllerMain().getLocalId();
+		bgpCtrlMain=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		this.gatherHandler=new GatherEventHandler(context);
 
 	}
@@ -86,19 +90,19 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	@Override
 	public synchronized void onMessage(String fromAS,String message) {
 		logger.info("GATHER:["+fromAS+"]"+message);
-		GatherMessageBase msg=GatherMessageBase.createFromJson(message);
+		GatherBase msg=GatherBase.createFromJson(message);
 		if(msg.getType().equals("reply")){
-			gatherHandler.onReply(fromAS,(ReplyMessage)msg);
+			gatherHandler.onReply(fromAS,(GatherReply)msg);
 		}else if(msg.getType().equals("request")){
-			gatherHandler.onRequest(fromAS,(RequestMessage)msg);
+			gatherHandler.onRequest(fromAS,(GatherRequest)msg);
 		}
 	}
 
 	@Override
 	public void onGather(String prefix,int limit){
-		RequestMessage msg=new RequestMessage(bgp.getControllerMain().getLocalId(),prefix,limit);
-		for(Entry<String,RemoteController> e:bgp.getControllerMain().getControllerMap().entrySet()){
-			e.getValue().getChannel().write("GATHER "+msg.toJsonString());
+		GatherRequest gatherRequest=new GatherRequest(bgpCtrlMain.getLocalId(),prefix,limit);
+		for(RemoteController remoteCtrl:bgpCtrlMain.getControllerMap().values()){
+			remoteCtrl.sendMessage(new GatherMessage(gatherRequest));
 		}
 	}
 	public Set<AsLink> getView(){

@@ -48,7 +48,7 @@ public class RemoteController {
     public RemoteController(RemoteControllerConfig config,FloodlightModuleContext context){
     	gather=(GatherModule)context.getServiceImpl(IGatherService.class);
 		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
-		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
+		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 
 		this.localId=ctrlMain.getLocalId();
         this.ip = IPv4.toIPv4Address(config.getIp());
@@ -86,8 +86,8 @@ public class RemoteController {
     }
 
 
-    public List<RemoteLink> getListLink() {
-        return listLink;
+    public RemoteLink getDefaultLink(){
+    	return listLink.get(0);
     }
 
 
@@ -142,7 +142,7 @@ public class RemoteController {
     }
     
     public void handleMessage(String line) throws OpenFailException, NotificationException{
-    		EBGPMessageBase msg=EBGPMessageBase.createEvent(line);
+    		EBGPMessageBase msg=EBGPMessageBase.createMessage(line);
     		if(msg==null){
     			logger.error("message error");
     		}else{
@@ -159,12 +159,12 @@ public class RemoteController {
     	return channel;
     }
 
-    public void delete(){
-    	//TODO
-    }
-
     public void sendMessage(EBGPMessageBase msg){
-    	channel.write(msg.getWritable());
+    	if(stateMachine.getControllerState()==ControllerState.ESTABLISHED){
+    		channel.write(msg.getWritable());
+    	}else{
+    		logger.info("state error when sending message");
+    	}
     }
     
     public String toString(){

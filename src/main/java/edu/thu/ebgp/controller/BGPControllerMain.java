@@ -11,6 +11,7 @@ import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
 import edu.thu.ebgp.egpkeepalive.KeepAliveSendThread;
 import edu.thu.ebgp.egpkeepalive.KeepAliveTimerThread;
+import edu.thu.ebgp.message.EBGPMessageBase;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;
 import edu.thu.ebgp.routing.BGPRoutingTable;
@@ -36,7 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
+public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 
     private static Logger logger = LoggerFactory.getLogger(BGPControllerMain.class);
 
@@ -64,9 +65,6 @@ public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
     	return controllerMap;
     }
 
-    public RemoteController getRemoteController(String id){
-    	return controllerMap.get(id);
-    }
 
     private void debugConfigFile(AllConfig config) {
         System.out.println("localAs:");
@@ -111,23 +109,11 @@ public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
     }
 
 
-
-    public RemoteController getRemoteControllerBySwitchPort(String switchid, String port){
-    	for (RemoteController controller:controllerMap.values()) {
-            for (RemoteLink link:controller.getListLink()){
-            	if (link.getLocalSwitchId().equals(switchid) && link.getLocalSwitchPort().equals(port)){
-            		return controller;
-            	}
-            }
-        }
-    	return null;
-    }
-
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleServices() {
 		Collection<Class<? extends IFloodlightService>> l =
 				new ArrayList<Class<? extends IFloodlightService>>();
-		l.add(IBGPStateService.class);
+		l.add(IBGPConnectService.class);
 		return l;
 	}
 
@@ -136,7 +122,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
 
 		Map<Class<? extends IFloodlightService>, IFloodlightService> m =
 		new HashMap<Class<? extends IFloodlightService>, IFloodlightService>();
-		m.put(IBGPStateService.class, this);
+		m.put(IBGPConnectService.class, this);
 		return m;
 	}
 
@@ -169,27 +155,23 @@ public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
         	RemoteController controller = new RemoteController(rcConfig,context);
         	this.controllerMap.put(controller.getId(), controller);
         }
-        createServer(); // create listen thread
-        createClient();
-        createRetryThread();
-        //cliStart();
+        createAllThread();
 	}
 
-    private void createServer() {
+	private void createAllThread(){
+		// create server thread
         logger.info("Creating listening sockets...");
         serverThread = new NettyServerThread(localPort, controllerMap);
         serverThread.start();
         logger.info("Creating listening sockets successfully");
-    }
 
-    private void createClient() {
+		// create client thread
         logger.info("Creating sending sockets...");
         clientThread = new NettyClientThread(controllerMap);
         clientThread.start();
         logger.info("Creating sending sockets successfully");
-    }
-    private void createRetryThread(){
-		// start thread TODO
+
+		// create retry thread 
 		ScheduledExecutorService ses = threadPool.getScheduledExecutor();
 		retryConnectTask = new SingletonTask(ses, new Runnable() {
 			@Override
@@ -212,6 +194,9 @@ public class BGPControllerMain implements IFloodlightModule,IBGPStateService{
 	public AllConfig getAllConfig(){
 		return allConfig;
 	}
-
+	
+	public void sendMessage(String toAS, EBGPMessageBase msg){
+		controllerMap.get(toAS).sendMessage(msg);
+	}
 
 }

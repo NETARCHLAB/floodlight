@@ -11,6 +11,7 @@ import edu.thu.ebgp.routing.HopSwitch;
 import edu.thu.ebgp.routing.FibTableEntry;
 
 import java.io.File;
+import java.util.GregorianCalendar;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,13 +48,13 @@ public class StateMachineHandler {
 			this.handleKeepAlive((KeepAliveMessage)msg);
 			break;
 		case LINKDOWN:
-            controller.getListLink().get(0).setState(RemoteLink.LinkState.DOWN);
-            hopSwitch = new HopSwitch(controller.getListLink().get(0).getLocalSwitchId(), controller.getListLink().get(0).getLocalSwitchPort());
+            controller.getDefaultLink().setState(RemoteLink.LinkState.DOWN);
+            hopSwitch = new HopSwitch(controller.getDefaultLink().getLocalSwitchId(), controller.getDefaultLink().getLocalSwitchPort());
             controller.getTable().linkDown(hopSwitch);
 			break;
 		case LINKUP:
-            controller.getListLink().get(0).setState(RemoteLink.LinkState.UP);
-            hopSwitch = new HopSwitch(controller.getListLink().get(0).getRemoteSwitchId(), controller.getListLink().get(0).getRemoteSwitchPort());
+            controller.getDefaultLink().setState(RemoteLink.LinkState.UP);
+            hopSwitch = new HopSwitch(controller.getDefaultLink().getRemoteSwitchId(), controller.getDefaultLink().getRemoteSwitchPort());
             //controller.getTable().sendAllEntry(controller.getSendEvent(), hopSwitch);
 			break;
 		case NOTIFICATION:
@@ -68,11 +69,11 @@ public class StateMachineHandler {
 			break;
         }
     }
-    
+
 
 
     public void handleOpen(OpenMessage msg) throws OpenFailException{
-    	//TODO simple state design
+    	// simple state design
     	switch(state){
     	case IDLE:
     	case CONNECT:
@@ -111,24 +112,10 @@ public class StateMachineHandler {
     	}
     }
 
-    public void handleUpdate(UpdateMessage updateEvent){
+    public void handleUpdate(UpdateMessage updateMessage){
     	switch(state){
     	case ESTABLISHED:
-    		long time1 = System.currentTimeMillis();
-    		String info = updateEvent.getWritable().split(" ")[1];
-    		UpdateInfo updateInfo;
-    		try {
-    			ObjectMapper mapper = new ObjectMapper();
-    			updateInfo = mapper.readValue(info, UpdateInfo.class);
-    			//FibTableEntry entry = new FibTableEntry(updateInfo.getIndex(), updateInfo.getNextHop(), updateInfo.getPath());
-    			controller.getTable().updateRoute(this.controller, updateInfo);
-    		}  catch (Exception e){
-    			e.printStackTrace();
-    			return ;
-    		}
-    		long time2 = System.currentTimeMillis();
-    		long handleTime = time2 - time1;
-    		logger.info("UPDATE Handle Time: {}", handleTime);
+    		controller.getTable().updateRoute(this.controller, updateMessage.getUpdateInfo());
     		break;
     	default:
     		logger.warn("Controller receive update in wrong state : "+state.toString());

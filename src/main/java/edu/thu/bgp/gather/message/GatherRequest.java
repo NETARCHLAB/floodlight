@@ -4,15 +4,15 @@ import java.io.IOException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class RequestMessage extends GatherMessageBase{
+public class GatherRequest extends GatherBase{
 	private String srcAS;
 	private String dstPrefix;
 	private int ttl;
 
-	public RequestMessage(){
+	public GatherRequest(){
 		this.type="request";
 	}
-	public RequestMessage(String srcAS,String dstPrefix,int ttl){
+	public GatherRequest(String srcAS,String dstPrefix,int ttl){
 		this.type="request";
 		this.srcAS=srcAS;
 		this.dstPrefix=dstPrefix;

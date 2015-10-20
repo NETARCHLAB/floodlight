@@ -1,5 +1,9 @@
 package edu.thu.ebgp.message;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import edu.thu.bgp.gather.message.GatherMessage;
+
 
 public class EBGPMessageBase {
     private EBGPMessageType type;
@@ -20,7 +24,7 @@ public class EBGPMessageBase {
     }
 
 
-    public static EBGPMessageBase createEvent(String line){
+    public static EBGPMessageBase createMessage(String line){
     	Integer space=line.indexOf(" ");
     	if(space<0){
     		if(line.equals("KEEPALIVE")){
@@ -36,7 +40,11 @@ public class EBGPMessageBase {
     		}else if (type.equals("KEEPALIVE")) {
     			return new KeepAliveMessage();
     		}else if (type.equals("UPDATE")) {
-    			return new UpdateMessage(data);
+    			try {
+    				return new UpdateMessage(data);
+    			}  catch (Exception e){
+    				return null;
+    			}
     		}else if (type.equals("GATHER")){
     			return new GatherMessage(data);
     		}else{

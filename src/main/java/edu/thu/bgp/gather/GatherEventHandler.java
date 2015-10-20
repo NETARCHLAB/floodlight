@@ -7,11 +7,12 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import edu.thu.bgp.gather.message.GatherMessageBase;
-import edu.thu.bgp.gather.message.ReplyMessage;
-import edu.thu.bgp.gather.message.RequestMessage;
+import edu.thu.bgp.gather.message.GatherBase;
+import edu.thu.bgp.gather.message.GatherMessage;
+import edu.thu.bgp.gather.message.GatherReply;
+import edu.thu.bgp.gather.message.GatherRequest;
 import edu.thu.ebgp.controller.BGPControllerMain;
-import edu.thu.ebgp.controller.IBGPStateService;
+import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
 import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
@@ -28,7 +29,7 @@ public class GatherEventHandler {
 	protected int unitTime=1;
 	public GatherEventHandler(FloodlightModuleContext context){
 		gatherModule=(GatherModule)context.getServiceImpl(IGatherService.class);
-		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPStateService.class);
+		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
 		this.viewState=new ViewState();
 		self=this;
@@ -47,7 +48,7 @@ public class GatherEventHandler {
 		}
 	}
 	public void doReply(String srcAS,String dstPrefix){
-		ReplyMessage reply=new ReplyMessage(srcAS,dstPrefix);
+		GatherReply reply=new GatherReply(srcAS,dstPrefix);
 		reply.setViewListBySet(viewState.linkSet);
 		for(String toAS:viewState.replyList){
 			sendTo(toAS,reply);
@@ -56,7 +57,7 @@ public class GatherEventHandler {
 		log.info("end of asyn call");
 		//TODO timeout call init;
 	}
-	public void onReply(String fromAS,ReplyMessage msg){
+	public void onReply(String fromAS,GatherReply msg){
 		if(ctrlMain.getLocalId().equals(msg.getSrcAS())){
 			for(String s:msg.getViewList()){
 				AsLink link=new AsLink(s);
@@ -74,14 +75,14 @@ public class GatherEventHandler {
 			}
 		}
 	}
-	public void onRequest(String fromAS,RequestMessage msg){
+	public void onRequest(String fromAS,GatherRequest msg){
 		AsLink link=new AsLink(fromAS,ctrlMain.getLocalId());
 
 		RoutingIndex routingIndex=new RoutingIndex();
 		routingIndex.setDstIp(msg.getDstPrefix());
 		if(table.containLocalPrefix(routingIndex)){
 			viewState.linkSet.add(link);
-			ReplyMessage reply=new ReplyMessage();
+			GatherReply reply=new GatherReply();
 			reply.setSrcAS(msg.getSrcAS());
 			reply.setDstPrefix(msg.getDstPrefix());
 			reply.setViewListBySet(viewState.linkSet);
@@ -89,7 +90,7 @@ public class GatherEventHandler {
 		}else{
 			Integer pathLength=table.getShortestPathLength(routingIndex);
 			if(pathLength==null||msg.getTtl()<pathLength){
-				ReplyMessage reply=new ReplyMessage();
+				GatherReply reply=new GatherReply();
 				reply.setSrcAS(msg.getSrcAS());
 				reply.setDstPrefix(msg.getDstPrefix());
 				sendTo(fromAS,reply);
@@ -103,7 +104,7 @@ public class GatherEventHandler {
 							continue;
 						}else{
 							//TODO check relationship
-							RequestMessage request=new RequestMessage(msg.getSrcAS(),msg.getDstPrefix(),ttl);
+							GatherRequest request=new GatherRequest(msg.getSrcAS(),msg.getDstPrefix(),ttl);
 							sendTo(toAS,request);
 							viewState.waitList.add(toAS);
 						}
@@ -116,16 +117,14 @@ public class GatherEventHandler {
 					viewState.linkSet.add(link);
 					viewState.replyList.add(fromAS);
 				}else if(viewState.state==ViewState.State.STATE_FINISH){
-					ReplyMessage reply=new ReplyMessage();
+					GatherReply reply=new GatherReply();
 					sendTo(fromAS,reply);
 				}
 			}
 		}
 	}
-	public void onTimeout(){
-	}
-	public void sendTo(String toAS,GatherMessageBase msg){
-		ctrlMain.getControllerMap().get(toAS).getChannel().write("GATHER"+msg.toJsonString());
+	public void sendTo(String toAS,GatherBase msg){
+		ctrlMain.sendMessage(toAS,new GatherMessage(msg));
 	}
 	public Set<AsLink> getView(){
 		return viewState.linkSet;

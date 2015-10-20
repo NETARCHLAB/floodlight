@@ -12,15 +12,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.thu.bgp.gather.AsLink;
 
-public class ReplyMessage extends GatherMessageBase{
+public class GatherReply extends GatherBase{
 	private String srcAS=null;
 	private List<String> viewList=null;
 	private String dstPrefix=null;
-	public ReplyMessage(){
+	public GatherReply(){
 		this.type="reply";
 		this.viewList=new LinkedList<String>();
 	}
-	public ReplyMessage(String srcAS,String dstPrefix){
+	public GatherReply(String srcAS,String dstPrefix){
 		this.type="reply";
 		this.srcAS=srcAS;
 		this.dstPrefix=dstPrefix;
@@ -52,7 +52,7 @@ public class ReplyMessage extends GatherMessageBase{
 	}
 
 	public static void main(String args[]){
-		ReplyMessage rm=new ReplyMessage();
+		GatherReply rm=new GatherReply();
 		rm.setSrcAS("321");
 		List<String> l=new ArrayList<String>();
 		l.add("vdfs");
@@ -60,7 +60,7 @@ public class ReplyMessage extends GatherMessageBase{
 		rm.setViewList(l);
 		System.out.println(rm.toJsonString());
 		ObjectMapper om=new ObjectMapper();
-		ReplyMessage r=(ReplyMessage)GatherMessageBase.createFromJson(rm.toJsonString());
+		GatherReply r=(GatherReply)GatherBase.createFromJson(rm.toJsonString());
 		System.out.println(r.toString());
 	}
 }
