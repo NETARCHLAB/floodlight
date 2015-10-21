@@ -13,8 +13,6 @@ import edu.thu.bgp.gather.message.GatherReply;
 import edu.thu.bgp.gather.message.GatherRequest;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.controller.IBGPConnectService;
-import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;

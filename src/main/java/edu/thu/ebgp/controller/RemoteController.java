@@ -29,7 +29,7 @@ public class RemoteController {
     private static Logger logger = LoggerFactory.getLogger("egp.controller.RemoteController");
 
 
-    private Integer ip;
+    private int ip;
     private String id;
     private boolean isClient;
     private int port;
@@ -61,7 +61,7 @@ public class RemoteController {
         this.stateMachine = new StateMachineHandler(this);
     }
 
-    public Integer getIp() {
+    public int getIp() {
         return ip;
     }
 
@@ -160,11 +160,21 @@ public class RemoteController {
     }
 
     public void sendMessage(EBGPMessageBase msg){
-    	if(stateMachine.getControllerState()==ControllerState.ESTABLISHED){
-    		channel.write(msg.getWritable());
-    	}else{
+    	switch(stateMachine.getControllerState()){
+		case CONNECT:
+		case IDLE:
+		case ACTIVE:
     		logger.info("state error when sending message");
+			break;
+		case OPENSENT:
+		case OPENCONFIRM:
+		case ESTABLISHED:
+    		channel.write(msg.getWritable());
+			break;
+		default:
+			break;
     	}
+
     }
     
     public String toString(){

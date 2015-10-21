@@ -7,8 +7,6 @@ import org.restlet.resource.Get;
 import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
 
-import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;

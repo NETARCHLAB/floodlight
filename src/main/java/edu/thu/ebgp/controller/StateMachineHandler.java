@@ -3,7 +3,6 @@ package edu.thu.ebgp.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.thu.ebgp.config.AllConfig;
-import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
 import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.*;

@@ -8,8 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
-import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.IEGPKeepAliveService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;

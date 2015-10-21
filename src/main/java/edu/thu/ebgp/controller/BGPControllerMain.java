@@ -8,9 +8,6 @@ import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.config.LocalAsConfig;
 import edu.thu.ebgp.config.RemoteControllerConfig;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
-import edu.thu.ebgp.egpkeepalive.EGPKeepAlive;
-import edu.thu.ebgp.egpkeepalive.KeepAliveSendThread;
-import edu.thu.ebgp.egpkeepalive.KeepAliveTimerThread;
 import edu.thu.ebgp.message.EBGPMessageBase;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;
@@ -136,7 +133,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 			throws FloodlightModuleException {
         logger.info("Working...");
         if (!getConfigFile()) {
-            logger.error("Cannot read configuration file successfully");
+            logger.error("Cannot read configuration file.");
             return ;
         }
         this.localPort = Integer.parseInt(allConfig.getLocalPort());
@@ -181,8 +178,6 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 				} catch (Exception e) {
 					logger.error("Exception in retryConnectThread.", e);
 				} finally {
-					//if (!shuttingDown) {
-						// null role implies HA mode is not enabled.
 					retryConnectTask.reschedule(CONNECT_RETRY_TIME_INTERVAL, TimeUnit.SECONDS);
 				}
 			}
@@ -193,6 +188,12 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 	@Override
 	public AllConfig getAllConfig(){
 		return allConfig;
+	}
+	
+	@Override
+	public Integer getLocalIp(){
+		//TODO
+		return 0;
 	}
 	
 	public void sendMessage(String toAS, EBGPMessageBase msg){
