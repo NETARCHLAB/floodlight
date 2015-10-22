@@ -11,7 +11,6 @@ public class GatherWebRoutable implements RestletRoutable{
 	@Override
 	public Restlet getRestlet(Context context) {
 		Router router=new Router(context);
-		router.attach("/route",RouteTableResource.class);
 		router.attach("/operate",GatherOperationResource.class);
 		router.attach("/operate/{op}",GatherOperationResource.class);
 		router.attach("/timeouttest",TimeoutTestResource.class);

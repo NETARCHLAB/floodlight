@@ -34,7 +34,7 @@ public class TimeoutTestResource extends ServerResource{
 		RoutingIndex routingIndex=new RoutingIndex();
 		routingIndex.setDstIp(prefix);
 		BGPRoutingTable table=(BGPRoutingTable)getContext().getAttributes().get(IBGPRoutingTableService.class.getCanonicalName());
-		Integer pathLength=table.getShortestPathLength(routingIndex);
+		int pathLength=table.getFib().get(routingIndex).getPath().size();
 		StringBuilder sth=new StringBuilder();
 		sth.append(pathLength);
 		return sth.toString();

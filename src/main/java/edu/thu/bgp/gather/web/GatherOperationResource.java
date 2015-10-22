@@ -12,7 +12,7 @@ public class GatherOperationResource extends ServerResource{
 	public String dosth(String post){
 		String sth[]=post.split(" ");
 		GatherModule gather=(GatherModule)getContext().getAttributes().get(IGatherService.class.getCanonicalName());
-		gather.onGather(sth[0],Integer.parseInt(sth[1]));
+		gather.doGather(sth[0],Integer.parseInt(sth[1]));
 		return "start gather:"+post;
 	}
 

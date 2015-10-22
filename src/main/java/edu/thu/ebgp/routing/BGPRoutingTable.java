@@ -68,7 +68,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 
     private Set<RoutingIndex> localPrefixTable=new HashSet<RoutingIndex>();
 
-    public void linkDown(HopSwitch hopSwitch) {
+    public void onLinkDown(HopSwitch hopSwitch) {
     	//TODO
         logger.info("link Down");
         /*
@@ -82,23 +82,18 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
             }
         }*/
     }
-
-    public Map<RoutingIndex, RoutingPriorityQueue> getRoutes(){
+    public void onLinkUp(HopSwitch hopSwitch){
     	//TODO
-    	return null;
+    }
+    public void onEstablish(RemoteController remoteCtrl){
+    	// send all route
+    	for(Map.Entry<RoutingIndex, RibTableEntry> e:ribout.entrySet()){
+    		HopSwitch hopSwitch=remoteCtrl.getDefaultOutport();
+    		UpdateInfo updateInfo=new UpdateInfo(e.getKey(),hopSwitch,e.getValue().getPath(),(int)System.currentTimeMillis());
+    		remoteCtrl.sendMessage(new UpdateMessage(updateInfo));
+    	}
     }
     
-    public Integer getShortestPathLength(RoutingIndex ri){
-    	//TODO
-    	/*
-    	RoutingPriorityQueue queue=this.routes.get(ri);
-    	if(queue==null){
-    		return null;
-    	}else{
-    		return queue.getTop().getPath().size();
-    	}*/
-    	return null;
-    }
     public boolean containLocalPrefix(RoutingIndex ri){
     	return localPrefixTable.contains(ri);
     }
@@ -150,12 +145,12 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     		// shorter path
 
     		// 1. update fib
-    		HopSwitch hopSwitch=rCtrl.getDefaultLink().getLocalSwitch();
+    		HopSwitch hopSwitch=rCtrl.getDefaultOutport();
     		FibTableEntry newFibEntry=new FibTableEntry(info.getIndex(),hopSwitch,info.getPath());
     		fib.put(info.getIndex(),newFibEntry);
 
     		// 2. dump flow
-    		modifyFlowTable(oldFibEntry.getNextHop(), newFibEntry.getIndex(), newFibEntry);
+    		modifyFlowTable(oldFibEntry, newFibEntry.getIndex(), newFibEntry);
 
     		// 3. update ribout
     		RibTableEntry riboutEntry=ribEntry.clone();
@@ -199,23 +194,26 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 
 	
 	
-    public void modifyFlowTable(HopSwitch oldHopSwitch, RoutingIndex oldIndex, FibTableEntry newEntry) {
-    	String oldSrcIp = oldIndex.getSrcIp();
-        String oldDstIp = oldIndex.getDstIp();
-        String oldProtocol = oldIndex.getProtocol();
-        String oldSrcPort = oldIndex.getSrcPort();
-        String oldDstPort = oldIndex.getDstPort();
-        String oldSwitchId = oldHopSwitch.getSwitchId();
-        String oldOutPort = oldHopSwitch.getSwitchPort();
-        String oldLogInfo = "DeleteFlowMods:" +
-					 "\n---swichId: " + oldSwitchId + 
-					 "\n---srcIp: " + oldSrcIp +
-					 "\n---dstIp: " + oldDstIp +
-					 "\n---protocol: " + oldProtocol +
-					 "\n---srcPort: " + oldSrcPort +
-					 "\n---dstPort: " + oldDstPort;
-   		logger.info(oldLogInfo);
-       	deleteFlowMods(oldSwitchId, oldSrcIp, oldDstIp, oldProtocol, oldSrcPort, oldDstPort, Integer.parseInt(oldOutPort));
+    public void modifyFlowTable(FibTableEntry oldEntry, RoutingIndex oldIndex, FibTableEntry newEntry) {
+    	if(oldEntry!=null){
+    		HopSwitch oldHopSwitch=oldEntry.getNextHop();
+    		String oldSrcIp = oldIndex.getSrcIp();
+    		String oldDstIp = oldIndex.getDstIp();
+    		String oldProtocol = oldIndex.getProtocol();
+    		String oldSrcPort = oldIndex.getSrcPort();
+    		String oldDstPort = oldIndex.getDstPort();
+    		String oldSwitchId = oldHopSwitch.getSwitchId();
+    		String oldOutPort = oldHopSwitch.getSwitchPort();
+    		String oldLogInfo = "DeleteFlowMods:" +
+    				"\n---swichId: " + oldSwitchId + 
+    				"\n---srcIp: " + oldSrcIp +
+    				"\n---dstIp: " + oldDstIp +
+    				"\n---protocol: " + oldProtocol +
+    				"\n---srcPort: " + oldSrcPort +
+    				"\n---dstPort: " + oldDstPort;
+    		logger.info(oldLogInfo);
+    		deleteFlowMods(oldSwitchId, oldSrcIp, oldDstIp, oldProtocol, oldSrcPort, oldDstPort, Integer.parseInt(oldOutPort));
+    	}
         if (newEntry!=null && !newEntry.isEmpty()) {
         	String newSrcIp = newEntry.getIndex().getSrcIp();
             String newDstIp = newEntry.getIndex().getDstIp();
@@ -284,6 +282,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	public void createFlowMods(String switchid, String srcipv4, String dstipv4, 
 			String protocol, String srcport, String dstport, int outport){
 		IOFSwitch mySwitch = switchService.getSwitch(DatapathId.of(switchid));
+		if(mySwitch==null) return ;
 		OFFactory myFactory = mySwitch.getOFFactory();
 		OFVersion myVersion = myFactory.getVersion();
 		int priority = 1024;

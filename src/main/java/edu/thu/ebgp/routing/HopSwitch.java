@@ -43,4 +43,8 @@ public class HopSwitch {
     public void setSwitchPort(String switchPort) {
         this.switchPort = switchPort;
     }
+    
+    public String toString(){
+    	return "SwitchPort("+this.switchId+"-"+this.switchPort+")";
+    }
 }

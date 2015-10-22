@@ -11,6 +11,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.thu.bgp.gather.AsLink;
+import edu.thu.ebgp.message.EBGPMessageBase;
+import edu.thu.ebgp.message.UpdateInfo;
+import edu.thu.ebgp.message.UpdateMessage;
+import edu.thu.ebgp.routing.HopSwitch;
+import edu.thu.ebgp.routing.RoutingIndex;
 
 public class GatherReply extends GatherBase{
 	private String srcAS=null;
@@ -52,6 +57,16 @@ public class GatherReply extends GatherBase{
 	}
 
 	public static void main(String args[]){
+		HopSwitch hs=new HopSwitch("s","p");
+		RoutingIndex ri=new RoutingIndex();
+		List<String> ls=new LinkedList<String>();
+		ls.add("fds");
+		UpdateInfo updateInfo=new UpdateInfo(ri,hs,ls,321);
+		UpdateMessage msg=new UpdateMessage(updateInfo);
+		System.out.println(msg.getWritable());
+		UpdateMessage m=(UpdateMessage)EBGPMessageBase.createMessage(msg.getWritable());
+		System.out.println(m.getWritable());
+		/*
 		GatherReply rm=new GatherReply();
 		rm.setSrcAS("321");
 		List<String> l=new ArrayList<String>();
@@ -61,6 +76,6 @@ public class GatherReply extends GatherBase{
 		System.out.println(rm.toJsonString());
 		ObjectMapper om=new ObjectMapper();
 		GatherReply r=(GatherReply)GatherBase.createFromJson(rm.toJsonString());
-		System.out.println(r.toString());
+		System.out.println(r.toString());*/
 	}
 }

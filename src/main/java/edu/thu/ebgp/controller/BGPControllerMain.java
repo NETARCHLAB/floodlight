@@ -9,6 +9,7 @@ import edu.thu.ebgp.config.LocalAsConfig;
 import edu.thu.ebgp.config.RemoteControllerConfig;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.message.EBGPMessageBase;
+import edu.thu.ebgp.message.OpenMessage;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.RoutingIndex;
 import edu.thu.ebgp.routing.BGPRoutingTable;
@@ -53,6 +54,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 
 	protected IThreadPoolService threadPool;
 	protected SingletonTask retryConnectTask;
+	protected LinkKeepThread keepThread;
 
     public String getLocalId(){
     	return localId;
@@ -140,6 +142,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
         this.localId = allConfig.getLocalId();
 
 		threadPool = context.getServiceImpl(IThreadPoolService.class);
+		keepThread=new LinkKeepThread(context);
 	}
 
 
@@ -152,6 +155,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
         	RemoteController controller = new RemoteController(rcConfig,context);
         	this.controllerMap.put(controller.getId(), controller);
         }
+        keepThread.start();
         createAllThread();
 	}
 

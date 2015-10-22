@@ -12,8 +12,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.thu.bgp.gather.message.GatherBase;
 import edu.thu.bgp.gather.message.GatherMessage;
@@ -23,6 +21,8 @@ import edu.thu.bgp.gather.web.GatherWebRoutable;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.controller.RemoteController;
+import edu.thu.ebgp.routing.BGPRoutingTable;
+import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
@@ -33,11 +33,11 @@ import net.floodlightcontroller.threadpool.IThreadPoolService;
 
 public class GatherModule implements IFloodlightModule,IGatherService{
 	
-	protected static Logger logger;
+	protected static Logger logger = LoggerFactory.getLogger(GatherModule.class);
 	protected IRestApiService restApi;
 	protected BGPControllerMain bgpCtrlMain;
-	protected GatherEventHandler gatherHandler;
 	protected IThreadPoolService threadPool;
+	protected BGPRoutingTable table;
 
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleServices() {
@@ -57,19 +57,17 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleDependencies() {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public void init(FloodlightModuleContext context)
 			throws FloodlightModuleException {
-		logger = LoggerFactory.getLogger(GatherModule.class);
 		restApi = context.getServiceImpl(IRestApiService.class);
 		threadPool=context.getServiceImpl(IThreadPoolService.class);
 		bgpCtrlMain=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
-		this.gatherHandler=new GatherEventHandler(context);
-
+		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
+		viewStateMap=new HashMap<GatherKey,ViewState>();
 	}
 
 	@Override
@@ -77,6 +75,8 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 			throws FloodlightModuleException {
 		restApi.addRestletRoutable(new GatherWebRoutable());
 	}
+
+	private Map<GatherKey,ViewState> viewStateMap;
 	public void asynCall(int timeout,Runnable runnable){
 		ScheduledExecutorService ses = threadPool.getScheduledExecutor();
 		SingletonTask discoveryTask = new SingletonTask(ses,runnable);
@@ -84,27 +84,52 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	}
 
 	@Override
-	public synchronized void onMessage(String fromAS,String message) {
-		logger.info("GATHER:["+fromAS+"]"+message);
+	public synchronized void onGatherMessage(String fromAS,String message) {
 		GatherBase msg=GatherBase.createFromJson(message);
 		if(msg.getType().equals("reply")){
-			gatherHandler.onReply(fromAS,(GatherReply)msg);
+			GatherReply gatherReply=(GatherReply)msg;
+			GatherKey key=new GatherKey(gatherReply.getSrcAS(),gatherReply.getDstPrefix());
+			ViewState viewState=viewStateMap.get(key);
+			if(viewState==null){
+				return ;
+			}else{
+				viewState.onReply(fromAS, gatherReply);
+			}
 		}else if(msg.getType().equals("request")){
-			gatherHandler.onRequest(fromAS,(GatherRequest)msg);
+			GatherRequest gatherRequest=(GatherRequest)msg;
+			GatherKey key=new GatherKey(gatherRequest.getSrcAS(),gatherRequest.getDstPrefix());
+			ViewState viewState=viewStateMap.get(key);
+			if(viewState==null){
+				viewState=new ViewState(key,this,table,bgpCtrlMain);
+				viewStateMap.put(key, viewState);
+			}
+			viewState.onRequest(fromAS, gatherRequest);
 		}
 	}
 
 	@Override
-	public void onGather(String prefix,int limit){
+	public void doGather(String prefix,int limit){
 		GatherRequest gatherRequest=new GatherRequest(bgpCtrlMain.getLocalId(),prefix,limit);
 		for(RemoteController remoteCtrl:bgpCtrlMain.getControllerMap().values()){
 			remoteCtrl.sendMessage(new GatherMessage(gatherRequest));
 		}
+		GatherKey key=new GatherKey(bgpCtrlMain.getLocalId(),prefix);
+		ViewState viewState=viewStateMap.get(key);
+		if(viewState==null){
+			viewState=new ViewState(key,this,table,bgpCtrlMain);
+			viewStateMap.put(key, viewState);
+		}
 	}
 	public Set<AsLink> getView(){
-		return gatherHandler.getView();
+		//TODO
+		return null;
 	}
 	public ViewState getViewState(){
-		return gatherHandler.getViewState();
+		//TODO
+		return null;
+	}
+
+	public void sendTo(String toAS,GatherBase msg){
+		bgpCtrlMain.sendMessage(toAS,new GatherMessage(msg));
 	}
 }

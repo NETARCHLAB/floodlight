@@ -22,6 +22,7 @@ import edu.thu.ebgp.message.EBGPMessageBase;
 import edu.thu.ebgp.message.EBGPMessageType;
 import edu.thu.ebgp.message.OpenMessage;
 import edu.thu.ebgp.routing.BGPRoutingTable;
+import edu.thu.ebgp.routing.HopSwitch;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 
 public class RemoteController {
@@ -35,7 +36,6 @@ public class RemoteController {
     private int port;
     private List<RemoteLink> listLink = new ArrayList<RemoteLink>();
     private StateMachineHandler stateMachine;
-    private String localId;
 
     protected GatherModule gather;
     protected BGPControllerMain ctrlMain;
@@ -50,7 +50,6 @@ public class RemoteController {
 		table=(BGPRoutingTable)context.getServiceImpl(IBGPRoutingTableService.class);
 		ctrlMain=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 
-		this.localId=ctrlMain.getLocalId();
         this.ip = IPv4.toIPv4Address(config.getIp());
         this.id = config.getId();
         this.isClient = config.getCs().equals("c")?true:false;
@@ -89,6 +88,9 @@ public class RemoteController {
     public RemoteLink getDefaultLink(){
     	return listLink.get(0);
     }
+    public HopSwitch getDefaultOutport(){
+    	return getDefaultLink().getLocalSwitch();
+    }
 
 
     public void setChannel(Channel cc){
@@ -98,7 +100,7 @@ public class RemoteController {
 
 
     public String getLocalId() {
-        return localId;
+        return ctrlMain.getLocalId();
     }
 
     public StateMachineHandler getStateMachine() {
@@ -131,7 +133,7 @@ public class RemoteController {
     public void handleConnected(Channel channel){
     	this.channel=channel;
     	this.connectFuture=null;
-    	channel.write(new OpenMessage(localId).getWritable());
+    	channel.write(new OpenMessage(id).getWritable());
     	stateMachine.moveToState(ControllerState.OPENSENT);
     }
 
@@ -148,7 +150,7 @@ public class RemoteController {
     		}else{
     			if(msg.getType()==EBGPMessageType.GATHER){
     				//TODO change String to GatherMessage
-    				gather.onMessage(this.id,line);
+    				gather.onGatherMessage(this.id,line);
     			}else{
     				stateMachine.handleMessage(msg);
     			}

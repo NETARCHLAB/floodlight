@@ -160,7 +160,7 @@ public class LinkKeepThread implements IOFMessageListener,IOFSwitchListener{
 		RemoteLink remoteLink=remoteCtrl.getDefaultLink();
 		IOFSwitch mySwitch = switchService.getSwitch(DatapathId.of(remoteLink.getLocalSwitchId()));
 		if (mySwitch == null){
-			logger.info("border switch {} not setup", remoteLink.getLocalSwitch());
+			logger.info("border switch {} not setup", remoteLink.getLocalSwitch().toString());
 			return;
 		}
 		OFFactory myFactory = mySwitch.getOFFactory();		

@@ -6,6 +6,7 @@ import edu.thu.ebgp.config.AllConfig;
 import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.*;
+import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.HopSwitch;
 import edu.thu.ebgp.routing.FibTableEntry;
 
@@ -19,12 +20,14 @@ public class StateMachineHandler {
 
     private static Logger logger = LoggerFactory.getLogger(StateMachineHandler.class);
 
-    private RemoteController controller;
+    private RemoteController remoteCtrl;
     private ControllerState state;
+    private BGPRoutingTable table;
 
     StateMachineHandler(RemoteController controller) {
-        this.controller = controller;
+        this.remoteCtrl = controller;
         state = ControllerState.IDLE;
+        table=controller.getTable();
     }
 
     public void moveToState(ControllerState newState) {
@@ -47,13 +50,13 @@ public class StateMachineHandler {
 			this.handleKeepAlive((KeepAliveMessage)msg);
 			break;
 		case LINKDOWN:
-            controller.getDefaultLink().setState(RemoteLink.LinkState.DOWN);
-            hopSwitch = new HopSwitch(controller.getDefaultLink().getLocalSwitchId(), controller.getDefaultLink().getLocalSwitchPort());
-            controller.getTable().linkDown(hopSwitch);
+            remoteCtrl.getDefaultLink().setState(RemoteLink.LinkState.DOWN);
+            hopSwitch = new HopSwitch(remoteCtrl.getDefaultLink().getLocalSwitchId(), remoteCtrl.getDefaultLink().getLocalSwitchPort());
+            table.onLinkDown(hopSwitch);
 			break;
 		case LINKUP:
-            controller.getDefaultLink().setState(RemoteLink.LinkState.UP);
-            hopSwitch = new HopSwitch(controller.getDefaultLink().getRemoteSwitchId(), controller.getDefaultLink().getRemoteSwitchPort());
+            remoteCtrl.getDefaultLink().setState(RemoteLink.LinkState.UP);
+            hopSwitch = new HopSwitch(remoteCtrl.getDefaultLink().getRemoteSwitchId(), remoteCtrl.getDefaultLink().getRemoteSwitchPort());
             //controller.getTable().sendAllEntry(controller.getSendEvent(), hopSwitch);
 			break;
 		case NOTIFICATION:
@@ -79,11 +82,11 @@ public class StateMachineHandler {
     	case ACTIVE:
     		logger.warn("Controller state error when handle open message.");
     	case OPENSENT:
-    		if(msg.getId().equals(controller.getLocalId())){
+    		if(msg.getId().equals(remoteCtrl.getLocalId())){
     			moveToState(ControllerState.OPENCONFIRM);
-    			controller.sendMessage(new KeepAliveMessage());
+    			remoteCtrl.sendMessage(new KeepAliveMessage());
     		}else{
-    			controller.sendMessage(new NotificationMessage());
+    			remoteCtrl.sendMessage(new NotificationMessage());
     			throw new OpenFailException(msg.getWritable());
     		}
     		break;
@@ -104,7 +107,8 @@ public class StateMachineHandler {
     	switch(state){
     	case OPENCONFIRM:
     		moveToState(ControllerState.ESTABLISHED);
-    		controller.sendMessage(new KeepAliveMessage());
+    		table.onEstablish(remoteCtrl);
+    		remoteCtrl.sendMessage(new KeepAliveMessage());
     		break;
     	default:
     		return ;
@@ -114,7 +118,7 @@ public class StateMachineHandler {
     public void handleUpdate(UpdateMessage updateMessage){
     	switch(state){
     	case ESTABLISHED:
-    		controller.getTable().updateRoute(this.controller, updateMessage.getUpdateInfo());
+    		table.updateRoute(remoteCtrl, updateMessage.getUpdateInfo());
     		break;
     	default:
     		logger.warn("Controller receive update in wrong state : "+state.toString());
