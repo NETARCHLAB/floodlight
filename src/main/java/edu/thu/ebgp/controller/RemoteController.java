@@ -1,14 +1,19 @@
 package edu.thu.ebgp.controller;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.topology.NodePortTuple;
 
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
+import org.projectfloodlight.openflow.types.DatapathId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +27,6 @@ import edu.thu.ebgp.message.EBGPMessageBase;
 import edu.thu.ebgp.message.EBGPMessageType;
 import edu.thu.ebgp.message.OpenMessage;
 import edu.thu.ebgp.routing.BGPRoutingTable;
-import edu.thu.ebgp.routing.HopSwitch;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 
 public class RemoteController {
@@ -34,7 +38,7 @@ public class RemoteController {
     private String id;
     private boolean isClient;
     private int port;
-    private List<RemoteLink> listLink = new ArrayList<RemoteLink>();
+    private List<RemoteLink> linkList = new ArrayList<RemoteLink>();
     private StateMachineHandler stateMachine;
 
     protected GatherModule gather;
@@ -54,8 +58,9 @@ public class RemoteController {
         this.id = config.getId();
         this.isClient = config.getCs().equals("c")?true:false;
         this.port = config.getPort();
-        for (RemoteControllerLinkConfig c:config.getListLink()) {
-            listLink.add(new RemoteLink(c));
+        for (RemoteControllerLinkConfig linkConfig:config.getListLink()) {
+        	RemoteLink remoteLink=new RemoteLink(linkConfig);
+            linkList.add(remoteLink);
         }
         this.stateMachine = new StateMachineHandler(this);
     }
@@ -86,10 +91,13 @@ public class RemoteController {
 
 
     public RemoteLink getDefaultLink(){
-    	return listLink.get(0);
+    	return linkList.get(0);
     }
-    public HopSwitch getDefaultOutport(){
-    	return getDefaultLink().getLocalSwitch();
+    public Collection<RemoteLink> getAllLink(){
+    	return linkList;
+    }
+    public NodePortTuple getDefaultOutport(){
+    	return getDefaultLink().getLocalSwitchPort();
     }
 
 
@@ -133,8 +141,8 @@ public class RemoteController {
     public void handleConnected(Channel channel){
     	this.channel=channel;
     	this.connectFuture=null;
-    	channel.write(new OpenMessage(id).getWritable());
     	stateMachine.moveToState(ControllerState.OPENSENT);
+    	this.sendMessage(new OpenMessage(id));
     }
 
     public void handleClosed(){
@@ -146,7 +154,7 @@ public class RemoteController {
     public void handleMessage(String line) throws OpenFailException, NotificationException{
     		EBGPMessageBase msg=EBGPMessageBase.createMessage(line);
     		if(msg==null){
-    			logger.error("message error");
+    			logger.error("message error: {}",line);
     		}else{
     			if(msg.getType()==EBGPMessageType.GATHER){
     				//TODO change String to GatherMessage
@@ -161,7 +169,7 @@ public class RemoteController {
     	return channel;
     }
 
-    public void sendMessage(EBGPMessageBase msg){
+    public synchronized void sendMessage(EBGPMessageBase msg){
     	switch(stateMachine.getControllerState()){
 		case CONNECT:
 		case IDLE:
@@ -172,6 +180,7 @@ public class RemoteController {
 		case OPENCONFIRM:
 		case ESTABLISHED:
     		channel.write(msg.getWritable());
+    		channel.write("\n");
 			break;
 		default:
 			break;
@@ -181,7 +190,7 @@ public class RemoteController {
     
     public String toString(){
     	StringBuilder sb=new StringBuilder();
-    	sb.append("Controller{");
+    	sb.append("RemoteController{");
     	sb.append("id:");
     	sb.append(id);
     	sb.append(",addr:");
@@ -191,4 +200,5 @@ public class RemoteController {
     	sb.append("}");
     	return sb.toString();
     }
+    
 }

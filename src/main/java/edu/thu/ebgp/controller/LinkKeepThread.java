@@ -157,10 +157,10 @@ public class LinkKeepThread implements IOFMessageListener,IOFSwitchListener{
 	}
 
 	public void sendLinkKeepPacket(RemoteController remoteCtrl) {
-		RemoteLink remoteLink=remoteCtrl.getDefaultLink();
-		IOFSwitch mySwitch = switchService.getSwitch(DatapathId.of(remoteLink.getLocalSwitchId()));
+		RemoteLink defaultLink=remoteCtrl.getDefaultLink();
+		IOFSwitch mySwitch = switchService.getSwitch(defaultLink.getLocalSwitchId());
 		if (mySwitch == null){
-			logger.info("border switch {} not setup", remoteLink.getLocalSwitch().toString());
+			logger.info("border switch {} not setup", defaultLink.getLocalSwitchPort().toString());
 			return;
 		}
 		OFFactory myFactory = mySwitch.getOFFactory();		
@@ -195,7 +195,7 @@ public class LinkKeepThread implements IOFMessageListener,IOFSwitchListener{
 		 
 		/* Specify the switch port(s) which the packet should be sent out. */
 		OFActionOutput output = myFactory.actions().buildOutput()
-		    .setPort(OFPort.of(Integer.parseInt(remoteLink.getLocalSwitchPort())))
+		    .setPort(defaultLink.getLocalPort())
 		    .build();
 
 		/* 

@@ -1,6 +1,5 @@
 package edu.thu.ebgp.config;
 
-import edu.thu.ebgp.routing.HopSwitch;
 
 public class LocalAsPortConfig {
     private String switchId;
@@ -22,7 +21,4 @@ public class LocalAsPortConfig {
         this.switchPort = switchPort;
     }
 
-    public HopSwitch getHopSwitch() {
-        return new HopSwitch(switchId, switchPort);
-    }
 }

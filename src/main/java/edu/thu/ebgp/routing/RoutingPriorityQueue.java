@@ -3,8 +3,12 @@ package edu.thu.ebgp.routing;
 import java.util.Iterator;
 import java.util.PriorityQueue;
 
+import net.floodlightcontroller.topology.NodePortTuple;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
 
 public class RoutingPriorityQueue {
 
@@ -21,7 +25,7 @@ public class RoutingPriorityQueue {
         return false;
     }
 
-    public synchronized boolean remove(HopSwitch hopSwitch) {
+    public synchronized boolean remove(NodePortTuple hopSwitch) {
         Iterator<FibTableEntry> iterator = queue.iterator();
         if (queue.isEmpty()) return false;
         boolean ret = false;

@@ -20,6 +20,7 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.frame.LineBasedFrameDecoder;
 import org.jboss.netty.handler.codec.string.StringDecoder;
 import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class NettyServerThread {
     private int localPort;
     private Map<String,RemoteController> controllerMap;
     private ServerBootstrap bootstrap;
+    public static int BUFFER_SIZE=65536;
 
 
     public NettyServerThread(int localPort, Map<String,RemoteController> controllerMap) {
@@ -51,6 +53,7 @@ public class NettyServerThread {
     		@Override
     		public ChannelPipeline getPipeline() throws Exception{
     			ChannelPipeline channelPipeline=Channels.pipeline(
+    					new LineBasedFrameDecoder(BUFFER_SIZE),
     					new StringDecoder(), new StringEncoder(),
     					new ServerHandler());
     			return channelPipeline;

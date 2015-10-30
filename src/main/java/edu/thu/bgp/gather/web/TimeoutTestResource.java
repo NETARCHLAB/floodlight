@@ -10,7 +10,7 @@ import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
-import edu.thu.ebgp.routing.RoutingIndex;
+import edu.thu.ebgp.routing.IpPrefix;
 
 public class TimeoutTestResource extends ServerResource{
 	public static Logger logger = LoggerFactory.getLogger(TimeoutTestResource.class);
@@ -31,13 +31,14 @@ public class TimeoutTestResource extends ServerResource{
 	}
 	@Post
 	public String dosth(String prefix){
-		RoutingIndex routingIndex=new RoutingIndex();
+		/*
+		IpPrefix routingIndex=new IpPrefix();
 		routingIndex.setDstIp(prefix);
 		BGPRoutingTable table=(BGPRoutingTable)getContext().getAttributes().get(IBGPRoutingTableService.class.getCanonicalName());
 		int pathLength=table.getFib().get(routingIndex).getPath().size();
 		StringBuilder sth=new StringBuilder();
-		sth.append(pathLength);
-		return sth.toString();
+		sth.append(pathLength);*/
+		return "";
 	}
 
 	@Get("json")

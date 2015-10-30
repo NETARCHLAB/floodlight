@@ -9,9 +9,11 @@ import org.restlet.resource.ServerResource;
 
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
-import edu.thu.ebgp.routing.RibTableEntry;
-import edu.thu.ebgp.routing.RoutingIndex;
+import edu.thu.ebgp.routing.IpPrefix;
 import edu.thu.ebgp.routing.RoutingPriorityQueue;
+import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
+import edu.thu.ebgp.routing.tableEntry.RibinTableEntry;
+import edu.thu.ebgp.routing.tableEntry.RiboutTableEntry;
 
 public class RouteTableResource extends ServerResource{
 	@Post("json")
@@ -25,13 +27,13 @@ public class RouteTableResource extends ServerResource{
 		BGPRoutingTable table=(BGPRoutingTable)getContext().getAttributes().get(IBGPRoutingTableService.class.getCanonicalName());
 		if(name.equals("ribout")){
 			StringBuilder sb=new StringBuilder();
-			for(Entry<RoutingIndex,RibTableEntry> e:table.getRibout().entrySet()){
+			for(Entry<IpPrefix,RiboutTableEntry> e:table.getRibout().entrySet()){
 				sb.append("["+e.getKey().toString()+"~~~~"+e.getValue().toString()+"]");
 			}
 			return sb.toString();
 		}else if(name.equals("fib")){
 			StringBuilder sb=new StringBuilder();
-			for(Entry<RoutingIndex,RibTableEntry> e:table.getRibout().entrySet()){
+			for(Entry<IpPrefix,FibTableEntry> e:table.getFib().entrySet()){
 				sb.append("["+e.getKey().toString()+"~~~~"+e.getValue().toString()+"]");
 			}
 			return sb.toString();

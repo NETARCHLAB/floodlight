@@ -9,17 +9,18 @@ import edu.thu.ebgp.config.LocalAsConfig;
 import edu.thu.ebgp.config.RemoteControllerConfig;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.message.EBGPMessageBase;
-import edu.thu.ebgp.message.OpenMessage;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
-import edu.thu.ebgp.routing.RoutingIndex;
+import edu.thu.ebgp.routing.IpPrefix;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +31,10 @@ import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
 import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.threadpool.IThreadPoolService;
+import net.floodlightcontroller.topology.NodePortTuple;
 
+import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.OFPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +48,8 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
     public static final int CONNECT_RETRY_TIME_INTERVAL = 5;
 
     private Map<String,RemoteController> controllerMap=new ConcurrentHashMap<String,RemoteController>();
+    private Map<DatapathId,Set<OFPort>> borderSwitchPort=new ConcurrentHashMap<DatapathId,Set<OFPort>>();
+
     private AllConfig allConfig;
 
     private int localPort;
@@ -150,10 +156,13 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 	@Override
 	public void startUp(FloodlightModuleContext context)
 			throws FloodlightModuleException {
-		//create each remote controller
+		// create each remote controller, information read from allConfig
         for (RemoteControllerConfig rcConfig:allConfig.getListController()) {
         	RemoteController controller = new RemoteController(rcConfig,context);
-        	this.controllerMap.put(controller.getId(), controller);
+        	controllerMap.put(controller.getId(), controller);
+        	for(RemoteLink remoteLink:controller.getAllLink()){
+        		addBorderSwitchPort(remoteLink.getLocalSwitchPort());
+        	}
         }
         keepThread.start();
         createAllThread();
@@ -197,7 +206,45 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 	@Override
 	public Integer getLocalIp(){
 		//TODO
+		logger.error("not implement");
 		return 0;
+	}
+	
+	@Override
+	public Collection<DatapathId> getBorderSwitches(){
+		return borderSwitchPort.keySet();
+	}
+	
+	@Override
+	public boolean containBorderSwitchPort(NodePortTuple nodePort){
+		Set<OFPort> portSet=borderSwitchPort.get(nodePort.getNodeId());
+		if(portSet==null){
+			return false;
+		}else{
+			return portSet.contains(nodePort);
+		}
+	}
+
+	private void addBorderSwitchPort(NodePortTuple nodePort){
+		Set<OFPort> portSet=borderSwitchPort.get(nodePort.getNodeId());
+		if(portSet==null){
+			portSet=new HashSet<OFPort>();
+			borderSwitchPort.put(nodePort.getNodeId(),portSet);
+		}
+		portSet.add(nodePort.getPortId());
+	}
+
+	private void removeBorderSwitchPort(NodePortTuple nodePort){
+		Set<OFPort> portSet=borderSwitchPort.get(nodePort.getNodeId());
+		if(portSet==null){
+			logger.warn("delete switch port in a unknown switch");
+			return ;
+		}else{
+			portSet.remove(nodePort.getPortId());
+			if(portSet.isEmpty()){
+				borderSwitchPort.remove(nodePort.getNodeId());
+			}
+		}
 	}
 	
 	public void sendMessage(String toAS, EBGPMessageBase msg){

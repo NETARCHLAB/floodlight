@@ -14,8 +14,7 @@ import edu.thu.bgp.gather.AsLink;
 import edu.thu.ebgp.message.EBGPMessageBase;
 import edu.thu.ebgp.message.UpdateInfo;
 import edu.thu.ebgp.message.UpdateMessage;
-import edu.thu.ebgp.routing.HopSwitch;
-import edu.thu.ebgp.routing.RoutingIndex;
+import edu.thu.ebgp.routing.IpPrefix;
 
 public class GatherReply extends GatherBase{
 	private String srcAS=null;
@@ -57,15 +56,16 @@ public class GatherReply extends GatherBase{
 	}
 
 	public static void main(String args[]){
+		/*
 		HopSwitch hs=new HopSwitch("s","p");
-		RoutingIndex ri=new RoutingIndex();
+		IpPrefix ri=new IpPrefix();
 		List<String> ls=new LinkedList<String>();
 		ls.add("fds");
 		UpdateInfo updateInfo=new UpdateInfo(ri,hs,ls,321);
 		UpdateMessage msg=new UpdateMessage(updateInfo);
 		System.out.println(msg.getWritable());
 		UpdateMessage m=(UpdateMessage)EBGPMessageBase.createMessage(msg.getWritable());
-		System.out.println(m.getWritable());
+		System.out.println(m.getWritable());8/
 		/*
 		GatherReply rm=new GatherReply();
 		rm.setSrcAS("321");

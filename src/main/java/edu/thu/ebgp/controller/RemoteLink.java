@@ -1,69 +1,72 @@
 package edu.thu.ebgp.controller;
 
+import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.OFPort;
+
+import net.floodlightcontroller.topology.NodePortTuple;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
-import edu.thu.ebgp.routing.HopSwitch;
 
 public class RemoteLink {
 	public enum LinkState {
 		UP,DOWN
 	}
 
-    private String localSwitchId;
-    private String localSwitchPort;
-    private String remoteSwitchId;
-    private String remoteSwitchPort;
+    private DatapathId localSwitchId;
+    private OFPort localPort;
+    private DatapathId remoteSwitchId;
+    private OFPort remotePort;
     private LinkState state;
 
     public RemoteLink(RemoteControllerLinkConfig config) {
-        this.localSwitchId = config.getLocalSwitchId();
-        this.localSwitchPort = config.getLocalSwitchPort();
-        this.remoteSwitchId = config.getRemoteSwitchId();
-        this.remoteSwitchPort = config.getRemoteSwitchPort();
+        this.localSwitchId = DatapathId.of(config.getLocalSwitchId());
+        this.localPort = OFPort.of(Integer.parseInt(config.getLocalSwitchPort()));
+        this.remoteSwitchId = DatapathId.of(config.getRemoteSwitchId());
+        this.remotePort = OFPort.of(Integer.parseInt(config.getRemoteSwitchPort()));
         this.state = LinkState.DOWN;
     }
 
-    public String getLocalSwitchId() {
+    public DatapathId getLocalSwitchId() {
         return localSwitchId;
     }
 
-    public HopSwitch getLocalSwitch() {
-        return new HopSwitch(this.localSwitchId, this.localSwitchPort);
+    public NodePortTuple getLocalSwitchPort() {
+        return new NodePortTuple(this.localSwitchId, this.localPort);
     }
 
-    public HopSwitch getRemoteSwitch() {
-        return new HopSwitch(this.remoteSwitchId, this.remoteSwitchPort);
+    public NodePortTuple getRemoteSwitchPort() {
+        return new NodePortTuple(this.remoteSwitchId, this.remotePort);
     }
 
-    public String getLocalSwitchPort() {
-        return localSwitchPort;
+    public OFPort getLocalPort() {
+        return localPort;
     }
 
-    public String getRemoteSwitchId() {
+    public DatapathId getRemoteSwitchId() {
         return remoteSwitchId;
     }
 
-    public String getRemoteSwitchPort() {
-        return remoteSwitchPort;
+    public OFPort getRemotePort() {
+        return remotePort;
     }
 
     public LinkState getState() {
         return state;
     }
 
-    public void setLocalSwitchId(String localSwitchId) {
+    public void setLocalSwitchId(DatapathId localSwitchId) {
         this.localSwitchId = localSwitchId;
     }
 
-    public void setLocalSwitchPort(String localSwitchPort) {
-        this.localSwitchPort = localSwitchPort;
+    public void setLocalPort(OFPort localSwitchPort) {
+        this.localPort = localSwitchPort;
     }
 
-    public void setRemoteSwitchId(String remoteSwitchId) {
+    public void setRemoteSwitchId(DatapathId remoteSwitchId) {
         this.remoteSwitchId = remoteSwitchId;
     }
 
-    public void setRemoteSwitchPort(String remoteSwitchPort) {
-        this.remoteSwitchPort = remoteSwitchPort;
+    public void setRemoteSwitchPort(OFPort remoteSwitchPort) {
+        this.remotePort = remoteSwitchPort;
     }
 
     public void setState(LinkState state) {
