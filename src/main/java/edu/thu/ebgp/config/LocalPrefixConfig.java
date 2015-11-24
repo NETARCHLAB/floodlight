@@ -5,28 +5,32 @@ import java.util.List;
 
 
 
-public class LocalAsConfig {
+public class LocalPrefixConfig {
 
     private String dstIp;
 
     // not used
-    private List<LocalAsPortConfig> outPort = new ArrayList<LocalAsPortConfig>();
+    private List<String> switchList = new ArrayList<String>();
 
     public String getDstIp() {
         return dstIp;
     }
 
-    public List<LocalAsPortConfig> getOutPort() {
-        return outPort;
+    public List<String> getSwitchList() {
+        return switchList;
     }
 
     public void setDstIp(String dstIp) {
         this.dstIp = dstIp;
     }
 
+    public void setSwitchList(List<String> switchList) {
+        this.switchList=switchList;
+    }
+
     public void print(){
     	System.out.println("LocalAsConfig:");
     	System.out.println("dstIp="+dstIp);
-    	System.out.println("outPort:"+outPort);
+    	System.out.println("outPort:"+switchList);
     }
 }

@@ -1,18 +1,11 @@
 package edu.thu.ebgp.message;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import net.floodlightcontroller.topology.NodePortTuple;
 
-import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.OFPort;
-
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.deser.DataFormatReaders.Match;
 
 import edu.thu.ebgp.routing.IpPrefix;
 
@@ -29,6 +22,7 @@ public class UpdateInfo {
         this.path = path;
         this.timestamp = timestamp;
     }
+
     public UpdateInfo(){
     }
 
@@ -67,13 +61,12 @@ public class UpdateInfo {
     private NodePortTuple inPort=null;
     public NodePortTuple gainInPort(){
     	if(inPort==null){
-    		String array[] = switchPort.split("|");
-    		System.out.println("number stop??");
-    		System.out.println(array[0]);
-    		System.out.println(array[1]);
-    		inPort=new NodePortTuple(DatapathId.of(array[0]),OFPort.of(Integer.parseInt(array[1])));
+    		int splitIndex=switchPort.indexOf('|');
+    		String switchStr=switchPort.substring(0, splitIndex);
+    		String portStr=switchPort.substring(splitIndex+1);
+    		inPort=new NodePortTuple(DatapathId.of(switchStr),OFPort.of(Integer.parseInt(portStr)));
     	}
     	return inPort;
     }
-    
+
 }

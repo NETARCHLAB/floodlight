@@ -7,11 +7,11 @@ import java.util.Comparator;
 import edu.thu.ebgp.routing.tableEntry.RibinTableEntry;
 
 
-public class RibEntryPriorityQueue {
+public class RibinEntryPriorityQueue {
 
     PriorityQueue<RibinTableEntry> queue;
 
-    public RibEntryPriorityQueue(){
+    public RibinEntryPriorityQueue(){
     	queue = new PriorityQueue<RibinTableEntry>(50, new Comparator<RibinTableEntry>(){
     		public int compare(RibinTableEntry entry1,RibinTableEntry entry2){
     			return entry1.getPath().size() - entry2.getPath().size();

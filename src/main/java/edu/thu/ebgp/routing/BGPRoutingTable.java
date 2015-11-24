@@ -23,6 +23,7 @@ import net.floodlightcontroller.topology.NodePortTuple;
 import org.projectfloodlight.openflow.protocol.OFFactory;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
 import org.projectfloodlight.openflow.protocol.OFFlowDeleteStrict;
+import org.projectfloodlight.openflow.protocol.OFFlowModFlags;
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFPortDesc;
@@ -50,7 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.thu.ebgp.config.AllConfig;
-import edu.thu.ebgp.config.LocalAsConfig;
+import edu.thu.ebgp.config.LocalPrefixConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.controller.RemoteController;
@@ -59,7 +60,7 @@ import edu.thu.ebgp.message.UpdateMessage;
 import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
 import edu.thu.ebgp.routing.tableEntry.RibinTableEntry;
 import edu.thu.ebgp.routing.tableEntry.RiboutTableEntry;
-import edu.thu.ebgp.web.BGPWebRoutable;
+import edu.thu.ebgp.web.EBGPWebRoutable;
 
 // route in : 1. 记录来源  2. 记录destination，按照destination分组
 // map<source, list<tableEntry>>
@@ -69,20 +70,19 @@ import edu.thu.ebgp.web.BGPWebRoutable;
 
 
 
-public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableService, IOFSwitchListener, IOFMessageListener{
+public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableService, IOFSwitchListener {
 
-    private static Logger logger = LoggerFactory.getLogger("egp.routing.RoutingTable");
+    private static Logger logger = LoggerFactory.getLogger(BGPRoutingTable.class);
 
-    private List<LocalAsConfig> localAs;
+    private List<LocalPrefixConfig> localAs;
     private String localId;
     
     private BGPControllerMain bgpController;
 
 	protected IOFSwitchService switchService;
-	protected IFloodlightProviderService floodlightProvider;
 	protected IRoutingService routingEngineService;
 
-    private Map<IpPrefix, RibEntryPriorityQueue> ribin = new HashMap<IpPrefix, RibEntryPriorityQueue>();
+    private Map<IpPrefix, RibinEntryPriorityQueue> ribin = new HashMap<IpPrefix, RibinEntryPriorityQueue>();
     private Map<IpPrefix, RiboutTableEntry> ribout = new HashMap<IpPrefix, RiboutTableEntry>();
     private Map<IpPrefix, FibTableEntry> fib = new HashMap<IpPrefix, FibTableEntry>();
 
@@ -121,6 +121,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     }
     
     
+    @Override
     public FibTableEntry matchFibEntry(IPv4Address dstIp){
     	// TODO this method is so slow
     	for(Map.Entry<IpPrefix, FibTableEntry> e:fib.entrySet()){
@@ -130,6 +131,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     	}
     	return null;
     }
+    
     
     public void onSwitchAdd(){
     }
@@ -162,7 +164,6 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 			throws FloodlightModuleException {
 		this.bgpController=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		this.switchService=context.getServiceImpl(IOFSwitchService.class);
-		this.floodlightProvider = context.getServiceImpl(IFloodlightProviderService.class);
 		this.routingEngineService = context.getServiceImpl(IRoutingService.class);
 	}
 
@@ -172,9 +173,9 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     	IpPrefix updatePrefix=ribinEntry.getPrefix();
 
     	// 0. add in rib in 
-    	RibEntryPriorityQueue queue=ribin.get(ribinEntry.getPath());
+    	RibinEntryPriorityQueue queue=ribin.get(ribinEntry.getPath());
     	if(queue==null){
-    		queue=new RibEntryPriorityQueue();
+    		queue=new RibinEntryPriorityQueue();
     		ribin.put(updatePrefix, queue);
     	}
     	queue.update(ribinEntry);
@@ -216,14 +217,13 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	public void startUp(FloodlightModuleContext context)
 			throws FloodlightModuleException {
 		switchService.addOFSwitchListener(this);
-		floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
 
 		AllConfig allConfig=bgpController.getAllConfig();
-		localAs=allConfig.getLocalAs();
+		localAs=allConfig.getLocalPrefix();
 		localId=allConfig.getLocalId();
         logger.info("Init routing table...");
         // add local prefix into ribout & localPrefix
-        for (LocalAsConfig prefixConfig : localAs) {
+        for (LocalPrefixConfig prefixConfig : localAs) {
         	IpPrefix ipPrefix=new IpPrefix(prefixConfig);
         	RiboutTableEntry riboutEntry=new RiboutTableEntry(ipPrefix);
         	riboutEntry.getPath().add(localId);
@@ -231,7 +231,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
         	localPrefixTable.add(ipPrefix);
         }
 		IRestApiService restApi = context.getServiceImpl(IRestApiService.class);
-		restApi.addRestletRoutable(new BGPWebRoutable());
+		restApi.addRestletRoutable(new EBGPWebRoutable());
         logger.info("Start routing table end");
 	}
 
@@ -373,6 +373,10 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 				actionList10.add(output);
 				
 				
+
+				//Set<OFFlowModFlags> flags = new HashSet<>();
+				//flags.add(OFFlowModFlags.SEND_FLOW_REM);
+
 				OFFlowAdd flowAdd10 = myFactory.buildFlowAdd()
 					    .setBufferId(OFBufferId.NO_BUFFER)
 					    .setHardTimeout(3600)
@@ -381,7 +385,9 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 					    .setMatch(myMatch)
 					    .setActions(actionList10)
 					    .setOutPort(outport)
+					    //.setFlags(flags) //to be removed
 					    .build();
+
 				
 				mySwitch.write(flowAdd10);
 				break;
@@ -447,7 +453,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		
 	}
 
-    public Map<IpPrefix, RibEntryPriorityQueue> getRibin(){
+    public Map<IpPrefix, RibinEntryPriorityQueue> getRibin(){
     	return ribin;
     }
     public Map<IpPrefix, RiboutTableEntry> getRibout(){
@@ -464,7 +470,6 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		if(bgpController.getBorderSwitches().contains(switchId)){
 			for(FibTableEntry fibEntry:fib.values()){
 				if(fibEntry.getNextHop().getNodeId().equals(switchId)){
-					System.out.println("dosth:"+switchId);
 					modifyFlowTable(fibEntry.getPrefix(), null, fibEntry);
 				}
 			}
@@ -482,62 +487,6 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	}
 	@Override
 	public void switchChanged(DatapathId switchId) {
-	}
-	
-	
-	
-	@Override
-	public String getName() {
-		return "bgprouting";
-	}
-	@Override
-	public boolean isCallbackOrderingPrereq(OFType type, String name) {
-		return (type.equals(OFType.PACKET_IN) && (name.equals("topology") || name.equals("devicemanager") || name.equals("firewall")));
-	}
-	@Override
-	public boolean isCallbackOrderingPostreq(OFType type, String name) {
-		return (type.equals(OFType.PACKET_IN) && (name.equals("forwarding")));
-	}
-	@Override
-	public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
-		switch(msg.getType()) {
-		case PACKET_IN:
-			OFPacketIn packetIn = (OFPacketIn)msg;
-			Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-			NodePortTuple srcSwitchPort=new NodePortTuple(sw.getId(),packetIn.getInPort());
-			if(bgpController.containBorderSwitchPort(srcSwitchPort)){
-				if(eth.getEtherType()==EthType.IPv4){
-					IPv4 ipv4=(IPv4)eth.getPayload();
-					FibTableEntry fibTableEntry=this.matchFibEntry(ipv4.getDestinationAddress());
-					if(fibTableEntry==null){
-						// no matching ip prefix, STOP.
-						return Command.STOP;
-					}
-
-					// dump a path
-					NodePortTuple dstSwitchPort=fibTableEntry.getNextHop();
-					Route route=routingEngineService.getRoute(srcSwitchPort.getNodeId(), dstSwitchPort.getNodeId(), U64.of(0));
-					this.pushRoute(route, fibTableEntry.getPrefix());
-				}else{
-					// not ipv4 packet received from a border port, STOP.
-					return Command.STOP;
-				}
-			}else{
-			}
-			break;
-		default:
-			break;
-		}
-
-		return Command.CONTINUE;
-	}
-	
-	private void pushRoute(Route route,IpPrefix dstPrefix){
-		List<NodePortTuple> switchPortList = route.getPath();
-		for (int indx = switchPortList.size() - 1; indx > 0; indx -= 2) {
-			NodePortTuple nodePort=switchPortList.get(indx);
-			this.createFlowMods(nodePort.getNodeId(), null, dstPrefix.getDstIp(), null, null, null, nodePort.getPortId());
-		}
 	}
 	
 }

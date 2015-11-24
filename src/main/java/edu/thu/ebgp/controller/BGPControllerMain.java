@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
 import edu.thu.ebgp.config.AllConfig;
-import edu.thu.ebgp.config.LocalAsConfig;
+import edu.thu.ebgp.config.LocalPrefixConfig;
 import edu.thu.ebgp.config.RemoteControllerConfig;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.message.EBGPMessageBase;
@@ -74,7 +74,7 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
     private void debugConfigFile(AllConfig config) {
         System.out.println("localAs:");
         //if (localAs != null)
-        for (LocalAsConfig asConfig:config.getLocalAs()) asConfig.print();
+        for (LocalPrefixConfig asConfig:config.getLocalPrefix()) asConfig.print();
         System.out.println("localID:" + config.getLocalId());
         System.out.println("number of controllers:" + config.getListController().size());
         for (RemoteControllerConfig c:config.getListController()) {
@@ -215,13 +215,18 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 		return borderSwitchPort.keySet();
 	}
 	
+	public Map<DatapathId,Set<OFPort>> getBorderSwitchPort(){
+		return borderSwitchPort;
+	}
+	
+	
 	@Override
 	public boolean containBorderSwitchPort(NodePortTuple nodePort){
 		Set<OFPort> portSet=borderSwitchPort.get(nodePort.getNodeId());
 		if(portSet==null){
 			return false;
 		}else{
-			return portSet.contains(nodePort);
+			return portSet.contains(nodePort.getPortId());
 		}
 	}
 

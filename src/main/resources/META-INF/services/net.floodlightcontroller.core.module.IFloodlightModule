@@ -27,3 +27,4 @@ net.floodlightcontroller.firewall.Firewall
 edu.thu.ebgp.routing.BGPRoutingTable
 edu.thu.ebgp.controller.BGPControllerMain
 edu.thu.bgp.gather.GatherModule
+edu.thu.ibgp.InternalBGPModule

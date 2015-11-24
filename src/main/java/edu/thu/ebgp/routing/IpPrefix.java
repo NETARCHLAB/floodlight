@@ -2,7 +2,7 @@ package edu.thu.ebgp.routing;
 
 import org.projectfloodlight.openflow.types.IPv4AddressWithMask;
 
-import edu.thu.ebgp.config.LocalAsConfig;
+import edu.thu.ebgp.config.LocalPrefixConfig;
 
 public class IpPrefix {
 
@@ -12,7 +12,7 @@ public class IpPrefix {
     	dstIp=IPv4AddressWithMask.of(ipmask);
     }
 
-    public IpPrefix(LocalAsConfig config) {
+    public IpPrefix(LocalPrefixConfig config) {
         dstIp = IPv4AddressWithMask.of(config.getDstIp());
     }
 

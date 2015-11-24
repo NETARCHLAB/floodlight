@@ -1,6 +1,5 @@
 package edu.thu.ebgp.web;
 
-import java.util.Map;
 import java.util.Map.Entry;
 
 import org.restlet.resource.Get;
@@ -10,9 +9,7 @@ import org.restlet.resource.ServerResource;
 import edu.thu.ebgp.routing.BGPRoutingTable;
 import edu.thu.ebgp.routing.IBGPRoutingTableService;
 import edu.thu.ebgp.routing.IpPrefix;
-import edu.thu.ebgp.routing.RoutingPriorityQueue;
 import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
-import edu.thu.ebgp.routing.tableEntry.RibinTableEntry;
 import edu.thu.ebgp.routing.tableEntry.RiboutTableEntry;
 
 public class RouteTableResource extends ServerResource{
@@ -42,8 +39,5 @@ public class RouteTableResource extends ServerResource{
 		}else{
 			return "nothing";
 		}
-
-		
 	}
-
 }

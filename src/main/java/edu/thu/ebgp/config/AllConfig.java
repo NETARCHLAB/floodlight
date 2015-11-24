@@ -6,8 +6,9 @@ import edu.thu.ebgp.exception.ConfigFormatErrorException;
 
 
 public class AllConfig {
+
     private String localId;
-    private List<LocalAsConfig> localAs;
+    private List<LocalPrefixConfig> localPrefix;
     private String localPort;
     private List<RemoteControllerConfig> listController;
 
@@ -15,8 +16,8 @@ public class AllConfig {
         return localId;
     }
 
-    public List<LocalAsConfig> getLocalAs() {
-        return localAs;
+    public List<LocalPrefixConfig> getLocalPrefix() {
+        return localPrefix;
     }
 
     public String getLocalPort() {
@@ -31,8 +32,8 @@ public class AllConfig {
         this.localId = localId;
     }
 
-    public void setLocalAs(List<LocalAsConfig> localAs) {
-        this.localAs = localAs;
+    public void setLocalPrefix(List<LocalPrefixConfig> localPrefix) {
+        this.localPrefix = localPrefix;
     }
 
     public void setLocalPort(String localPort) {
@@ -74,7 +75,7 @@ public class AllConfig {
     }
 
     public void check() throws Exception{ // check if all elements have been set correctly.
-        if (localAs == null) throw new ConfigFormatErrorException("Format error! Cannot get localAs");
+        if (localPrefix == null) throw new ConfigFormatErrorException("Format error! Cannot get localAs");
         if (localId == null) throw new ConfigFormatErrorException("Format error! Cannot get localId");
         if (localPort == null) throw new ConfigFormatErrorException("Format error! Cannot get localPort");
         if (listController == null || listController.size() == 0) throw new ConfigFormatErrorException("Format error! Cannot get remote controllers!");
