@@ -29,15 +29,22 @@ public class ViewState {
 	private GatherKey gatherKey;
 	// link
 	private Set<AsLink> linkSet;
+	
+	private Set<ForbiddenAsSet> forbiddenSet;
 	// reply list
 	private List<String> replyList;
 	// wait list
 	private List<String> waitList;
 	// state
 	public State state;
+	//the Current AS Number 
+	
 	private GatherModule gatherModule;
 	private BGPRoutingTable table;
 	private BGPControllerMain ctrlMain;
+	private Set<ForbiddenAsSet> forbidAsSet;
+	
+
 	public ViewState(GatherKey key,GatherModule gatherModule,BGPRoutingTable table,BGPControllerMain ctrlMain){
 		gatherKey=key;
 		this.gatherModule=gatherModule;
@@ -45,33 +52,115 @@ public class ViewState {
 		this.ctrlMain=ctrlMain;
 
 		linkSet=new HashSet<AsLink>();
+		forbiddenSet=new HashSet<ForbiddenAsSet>();
 		replyList=new LinkedList<String>();
 		waitList=new LinkedList<String>();
 
 		state=State.STATE_IDLE;
 
-
 	}
+	
+	/*  let  <provider-as>|<customer-as>|-1, and let  <peer-as>|<peer-as>|0
+	 RelationShip is true when it meet one of the following three situations.
+	 1. The relationship between fromAS and currentAS  is customer to provider, and the relationship between
+currentAS and toAS is provider to customer or peer to peer.
+	2. The relationship between fromAS and currentAS is peer to peer, and the relationship between CurrentAS
+and toAS is provider to customer.
+	3. The relationship between fromAS and currentAS is provider to customer, and the relationship between
+CurrentAS and ToAS is provider to customer.
+    */
+	public boolean RelationShip(int Relation[][], String fromAS, String currentAS, String toAS){
+		if ((Relation[Integer.parseInt(currentAS)][Integer.parseInt(fromAS)]==-1) &&(Relation[Integer.parseInt(currentAS)][Integer.parseInt(toAS)]==0)){
+			return true;
+		}
+		if ((Relation[Integer.parseInt(fromAS)][Integer.parseInt(currentAS)]==0) &&(Relation[Integer.parseInt(currentAS)][Integer.parseInt(toAS)]==-1)){
+			return true;
+		}
+		if ((Relation[Integer.parseInt(fromAS)][Integer.parseInt(currentAS)]==-1) &&(Relation[Integer.parseInt(currentAS)][Integer.parseInt(toAS)]==-1)){
+			return true;
+		}	
+		return false;
+	}
+	
 	public void onRequest(String fromAS,GatherRequest msg){
 		AsLink link=new AsLink(fromAS,ctrlMain.getLocalId());
-
+		String currentAS;
+		currentAS=ctrlMain.getLocalId();
+		int Relation[][]=new int[100][100];
+		//read from another file
+		for (int i=0;i<100;i++){
+			for (int j=0;j<100;j++)
+				Relation[i][j]=-1;
+		}
 		RoutingIndex routingIndex=new RoutingIndex();
 		routingIndex.setDstIp(msg.getDstPrefix());
-		if(table.containLocalPrefix(routingIndex)){
+		
+		if (table.containLocalPrefix(routingIndex)){//current AS is the destination AS
 			linkSet.add(link);
 			GatherReply reply=new GatherReply();
 			reply.setSrcAS(msg.getSrcAS());
 			reply.setDstPrefix(msg.getDstPrefix());
 			reply.setViewListBySet(linkSet);
 			gatherModule.sendTo(fromAS,reply);
-		}else{
+		}else{//current AS is the transit AS
+			if (state==State.STATE_IDLE){
+				linkSet.add(link);
+				replyList.add(fromAS);
+				for(String toAS:ctrlMain.getControllerMap().keySet()){
+					if(toAS.equals(fromAS)){
+						continue;
+					}else{
+						// check relationship
+						if (RelationShip(Relation, fromAS, currentAS,toAS)==true){
+							FibTableEntry fib=table.getFib().get(routingIndex);
+							// the hops from the current AS to the destination AS is larger than the ttl  limit (use hops to denote ttl) 
+							if( (fib==null) || (msg.getTtl() < fib.getPath().size())){
+								GatherReply reply=new GatherReply();
+								reply.setSrcAS(msg.getSrcAS());
+								reply.setDstPrefix(msg.getDstPrefix());
+								// send an empty reply back to the fromAS
+								gatherModule.sendTo(fromAS,reply); 
+								}else{
+									int ttl=msg.getTtl()-1;
+									GatherRequest request=new GatherRequest(msg.getSrcAS(),msg.getDstPrefix(),ttl);
+									gatherModule.sendTo(toAS,request);
+									waitList.add(toAS);	
+									state=State.STATE_START;
+									logger.info("before asyn call");
+									gatherModule.asynCall(ttl*unitTime, new DoReplyRun());
+									logger.info("after asyn call");
+								}
+						}else{
+							 ForbiddenAsSet asSet=new ForbiddenAsSet(fromAS,currentAS,toAS);
+							 forbidAsSet.add(asSet);			 
+						}
+					}	
+				}
+			}else{//state==State.STATE_START
+				
+			}
+		}
+		
+		
+		
+		// add the link between the currentAS and the fromAS to linkSet with a reply message
+		if(table.containLocalPrefix(routingIndex)){ // current AS is the destination AS
+			linkSet.add(link);
+			GatherReply reply=new GatherReply();
+			reply.setSrcAS(msg.getSrcAS());
+			reply.setDstPrefix(msg.getDstPrefix());
+			reply.setViewListBySet(linkSet);
+			gatherModule.sendTo(fromAS,reply);
+		}else{ // current AS is a transit AS
 			FibTableEntry fib=table.getFib().get(routingIndex);
-			if(fib==null||msg.getTtl()<fib.getPath().size()){
+			if(fib==null||msg.getTtl()<fib.getPath().size()){// the hops from the current AS to the destination AS is larger than the ttl  limit (use hops to denote ttl) 
 				GatherReply reply=new GatherReply();
 				reply.setSrcAS(msg.getSrcAS());
 				reply.setDstPrefix(msg.getDstPrefix());
-				gatherModule.sendTo(fromAS,reply);
+				// send an empty reply back to the fromAS
+				gatherModule.sendTo(fromAS,reply); 
 			}else{
+				//send request to its neighbor
 				int ttl=msg.getTtl()-1;
 				if(state==State.STATE_IDLE){
 					linkSet.add(link);
