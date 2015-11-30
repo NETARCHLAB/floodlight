@@ -2,17 +2,32 @@ package edu.thu.ebgp.routing;
 
 import java.util.*;
 
+import net.floodlightcontroller.core.FloodlightContext;
+import net.floodlightcontroller.core.IFloodlightProviderService;
+import net.floodlightcontroller.core.IOFMessageListener;
 import net.floodlightcontroller.core.IOFSwitch;
+import net.floodlightcontroller.core.IOFSwitchListener;
+import net.floodlightcontroller.core.PortChangeType;
 import net.floodlightcontroller.core.internal.IOFSwitchService;
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
+import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.restserver.IRestApiService;
+import net.floodlightcontroller.routing.IRoutingService;
+import net.floodlightcontroller.routing.Route;
+import net.floodlightcontroller.topology.NodePortTuple;
 
 import org.projectfloodlight.openflow.protocol.OFFactory;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
 import org.projectfloodlight.openflow.protocol.OFFlowDeleteStrict;
+import org.projectfloodlight.openflow.protocol.OFFlowModFlags;
+import org.projectfloodlight.openflow.protocol.OFMessage;
+import org.projectfloodlight.openflow.protocol.OFPacketIn;
+import org.projectfloodlight.openflow.protocol.OFPortDesc;
+import org.projectfloodlight.openflow.protocol.OFType;
 import org.projectfloodlight.openflow.protocol.OFVersion;
 import org.projectfloodlight.openflow.protocol.action.OFAction;
 import org.projectfloodlight.openflow.protocol.action.OFActionOutput;
@@ -31,17 +46,21 @@ import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TransportPort;
+import org.projectfloodlight.openflow.types.U64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.thu.ebgp.config.AllConfig;
-import edu.thu.ebgp.config.LocalAsConfig;
+import edu.thu.ebgp.config.LocalPrefixConfig;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.controller.IBGPConnectService;
 import edu.thu.ebgp.controller.RemoteController;
 import edu.thu.ebgp.message.UpdateInfo;
 import edu.thu.ebgp.message.UpdateMessage;
-import edu.thu.ebgp.web.BGPWebRoutable;
+import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
+import edu.thu.ebgp.routing.tableEntry.RibinTableEntry;
+import edu.thu.ebgp.routing.tableEntry.RiboutTableEntry;
+import edu.thu.ebgp.web.EBGPWebRoutable;
 
 // route in : 1. 记录来源  2. 记录destination，按照destination分组
 // map<source, list<tableEntry>>
@@ -51,24 +70,25 @@ import edu.thu.ebgp.web.BGPWebRoutable;
 
 
 
-public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableService{
+public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableService, IOFSwitchListener {
 
-    private static Logger logger = LoggerFactory.getLogger("egp.routing.RoutingTable");
+    private static Logger logger = LoggerFactory.getLogger(BGPRoutingTable.class);
 
-    private List<LocalAsConfig> localAs;
+    private List<LocalPrefixConfig> localAs;
     private String localId;
     
     private BGPControllerMain bgpController;
 
-	private IOFSwitchService switchService;
+	protected IOFSwitchService switchService;
+	protected IRoutingService routingEngineService;
 
-    private Map<RoutingIndex, RibEntryPriorityQueue> ribin = new HashMap<RoutingIndex, RibEntryPriorityQueue>();
-    private Map<RoutingIndex, RibTableEntry> ribout = new HashMap<RoutingIndex, RibTableEntry>();
-    private Map<RoutingIndex, FibTableEntry> fib = new HashMap<RoutingIndex, FibTableEntry>();
+    private Map<IpPrefix, RibinEntryPriorityQueue> ribin = new HashMap<IpPrefix, RibinEntryPriorityQueue>();
+    private Map<IpPrefix, RiboutTableEntry> ribout = new HashMap<IpPrefix, RiboutTableEntry>();
+    private Map<IpPrefix, FibTableEntry> fib = new HashMap<IpPrefix, FibTableEntry>();
 
-    private Set<RoutingIndex> localPrefixTable=new HashSet<RoutingIndex>();
+    private Set<IpPrefix> localPrefixTable=new HashSet<IpPrefix>();
 
-    public void onLinkDown(HopSwitch hopSwitch) {
+    public void onLinkDown(NodePortTuple nodePort) {
     	//TODO
         logger.info("link Down");
         /*
@@ -82,22 +102,39 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
             }
         }*/
     }
-    public void onLinkUp(HopSwitch hopSwitch){
+    public void onLinkUp(NodePortTuple nodePort){
     	//TODO
     }
+
+    @Override
     public void onEstablish(RemoteController remoteCtrl){
-    	// send all route
-    	for(Map.Entry<RoutingIndex, RibTableEntry> e:ribout.entrySet()){
-    		HopSwitch hopSwitch=remoteCtrl.getDefaultOutport();
-    		UpdateInfo updateInfo=new UpdateInfo(e.getKey(),hopSwitch,e.getValue().getPath(),(int)System.currentTimeMillis());
-    		remoteCtrl.sendMessage(new UpdateMessage(updateInfo));
+    	// send all route in ribout
+    	for(RiboutTableEntry riboutEntry:ribout.values()){
+    		NodePortTuple inPort=remoteCtrl.getDefaultOutport();
+    		remoteCtrl.sendMessage(new UpdateMessage(riboutEntry.createUpdateInfo(inPort)));
     	}
     }
     
-    public boolean containLocalPrefix(RoutingIndex ri){
+    @Override
+    public boolean containLocalPrefix(IpPrefix ri){
     	return localPrefixTable.contains(ri);
     }
-
+    
+    
+    @Override
+    public FibTableEntry matchFibEntry(IPv4Address dstIp){
+    	// TODO this method is so slow
+    	for(Map.Entry<IpPrefix, FibTableEntry> e:fib.entrySet()){
+    		if(e.getKey().getDstIp().contains(dstIp)){
+    			return e.getValue();
+    		}
+    	}
+    	return null;
+    }
+    
+    
+    public void onSwitchAdd(){
+    }
     
     
 	@Override
@@ -125,43 +162,47 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	@Override
 	public void init(FloodlightModuleContext context)
 			throws FloodlightModuleException {
-		bgpController=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
-		switchService=context.getServiceImpl(IOFSwitchService.class);
+		this.bgpController=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
+		this.switchService=context.getServiceImpl(IOFSwitchService.class);
+		this.routingEngineService = context.getServiceImpl(IRoutingService.class);
 	}
 
     public void updateRoute(RemoteController rCtrl,UpdateInfo info){
+    	// convert info to ribin entry
+    	RibinTableEntry ribinEntry=new RibinTableEntry(info);
+    	IpPrefix updatePrefix=ribinEntry.getPrefix();
+
     	// 0. add in rib in 
-    	RibTableEntry ribEntry=new RibTableEntry(info.getIndex(),info.getPath());
-    	RibEntryPriorityQueue queue=ribin.get(info.getIndex());
+    	RibinEntryPriorityQueue queue=ribin.get(ribinEntry.getPath());
     	if(queue==null){
-    		queue=new RibEntryPriorityQueue();
-    		ribin.put(info.getIndex(), queue);
+    		queue=new RibinEntryPriorityQueue();
+    		ribin.put(updatePrefix, queue);
     	}
-    	queue.update(ribEntry);
+    	queue.update(ribinEntry);
 
     	// compare with routing path
-    	FibTableEntry oldFibEntry=fib.get(info.getIndex());
-    	if((oldFibEntry==null)||(info.getPath().size()<oldFibEntry.getPath().size())){
+    	FibTableEntry oldFibEntry=fib.get(updatePrefix);
+    	if((oldFibEntry==null)||(ribinEntry.getPath().size()<oldFibEntry.getPath().size())){
     		// shorter path
 
     		// 1. update fib
-    		HopSwitch hopSwitch=rCtrl.getDefaultOutport();
-    		FibTableEntry newFibEntry=new FibTableEntry(info.getIndex(),hopSwitch,info.getPath());
-    		fib.put(info.getIndex(),newFibEntry);
+    		NodePortTuple hopSwitch=rCtrl.getDefaultOutport();
+    		FibTableEntry newFibEntry=new FibTableEntry(updatePrefix,hopSwitch,ribinEntry.getPath());
+    		fib.put(updatePrefix,newFibEntry);
 
     		// 2. dump flow
-    		modifyFlowTable(oldFibEntry, newFibEntry.getIndex(), newFibEntry);
+    		modifyFlowTable(updatePrefix, oldFibEntry, newFibEntry);
 
     		// 3. update ribout
-    		RibTableEntry riboutEntry=ribEntry.clone();
+    		RiboutTableEntry riboutEntry=new RiboutTableEntry(ribinEntry);
     		riboutEntry.getPath().add(localId);
-    		ribout.put(riboutEntry.getIndex(), riboutEntry);
+    		ribout.put(riboutEntry.getPrefix(), riboutEntry);
 
     		// 4. send route to neighbor
     		for(RemoteController sendCtrl:bgpController.getControllerMap().values()){
     			if(sendCtrl.getId()!=rCtrl.getId()){
-    				HopSwitch localHop=sendCtrl.getDefaultLink().getLocalSwitch();
-    				UpdateInfo sendInfo=new UpdateInfo(riboutEntry.getIndex(),localHop,riboutEntry.getPath(),(int)System.currentTimeMillis());
+    				NodePortTuple localHop=sendCtrl.getDefaultLink().getLocalSwitchPort();
+    				UpdateInfo sendInfo=new UpdateInfo(riboutEntry.getPrefix(),localHop,riboutEntry.getPath(),System.currentTimeMillis());
     				UpdateMessage sendMsg=new UpdateMessage(sendInfo);
     				sendCtrl.sendMessage(sendMsg);
     			}
@@ -175,68 +216,54 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 	@Override
 	public void startUp(FloodlightModuleContext context)
 			throws FloodlightModuleException {
+		switchService.addOFSwitchListener(this);
+
 		AllConfig allConfig=bgpController.getAllConfig();
-		localAs=allConfig.getLocalAs();
+		localAs=allConfig.getLocalPrefix();
 		localId=allConfig.getLocalId();
         logger.info("Init routing table...");
         // add local prefix into ribout & localPrefix
-        for (LocalAsConfig prefixConfig : localAs) {
-        	RoutingIndex routingIndex=new RoutingIndex(prefixConfig);
-        	RibTableEntry ribEntry=new RibTableEntry(routingIndex);
-        	ribEntry.getPath().add(localId);
-        	ribout.put(routingIndex,ribEntry);
-        	localPrefixTable.add(routingIndex);
+        for (LocalPrefixConfig prefixConfig : localAs) {
+        	IpPrefix ipPrefix=new IpPrefix(prefixConfig);
+        	RiboutTableEntry riboutEntry=new RiboutTableEntry(ipPrefix);
+        	riboutEntry.getPath().add(localId);
+        	ribout.put(ipPrefix,riboutEntry);
+        	localPrefixTable.add(ipPrefix);
         }
 		IRestApiService restApi = context.getServiceImpl(IRestApiService.class);
-		restApi.addRestletRoutable(new BGPWebRoutable());
+		restApi.addRestletRoutable(new EBGPWebRoutable());
         logger.info("Start routing table end");
 	}
 
 	
 	
-    public void modifyFlowTable(FibTableEntry oldEntry, RoutingIndex oldIndex, FibTableEntry newEntry) {
+    public void modifyFlowTable(IpPrefix ipPrefix, FibTableEntry oldEntry, FibTableEntry newEntry) {
     	if(oldEntry!=null){
-    		HopSwitch oldHopSwitch=oldEntry.getNextHop();
-    		String oldSrcIp = oldIndex.getSrcIp();
-    		String oldDstIp = oldIndex.getDstIp();
-    		String oldProtocol = oldIndex.getProtocol();
-    		String oldSrcPort = oldIndex.getSrcPort();
-    		String oldDstPort = oldIndex.getDstPort();
-    		String oldSwitchId = oldHopSwitch.getSwitchId();
-    		String oldOutPort = oldHopSwitch.getSwitchPort();
+    		NodePortTuple oldHopSwitch=oldEntry.getNextHop();
+    		IPv4AddressWithMask oldDstIp = ipPrefix.getDstIp();
+    		DatapathId oldSwitchId = oldHopSwitch.getNodeId();
+    		OFPort oldOutPort = oldHopSwitch.getPortId();
     		String oldLogInfo = "DeleteFlowMods:" +
     				"\n---swichId: " + oldSwitchId + 
-    				"\n---srcIp: " + oldSrcIp +
-    				"\n---dstIp: " + oldDstIp +
-    				"\n---protocol: " + oldProtocol +
-    				"\n---srcPort: " + oldSrcPort +
-    				"\n---dstPort: " + oldDstPort;
+    				"\n---dstIp: " + oldDstIp;
     		logger.info(oldLogInfo);
-    		deleteFlowMods(oldSwitchId, oldSrcIp, oldDstIp, oldProtocol, oldSrcPort, oldDstPort, Integer.parseInt(oldOutPort));
+    		deleteFlowMods(oldSwitchId, null, oldDstIp, null, null, null, oldOutPort);
     	}
         if (newEntry!=null && !newEntry.isEmpty()) {
-        	String newSrcIp = newEntry.getIndex().getSrcIp();
-            String newDstIp = newEntry.getIndex().getDstIp();
-            String newProtocol = newEntry.getIndex().getProtocol();
-            String newSrcPort = newEntry.getIndex().getSrcPort();
-            String newDstPort = newEntry.getIndex().getDstPort();
-            String newSwitchId = newEntry.getNextHop().getSwitchId();
-            String newOutPort = newEntry.getNextHop().getSwitchPort();
+            IPv4AddressWithMask newDstIp = newEntry.getPrefix().getDstIp();
+            DatapathId newSwitchId = newEntry.getNextHop().getNodeId();
+            OFPort newOutPort = newEntry.getNextHop().getPortId();
             String newLogInfo = "CreateFlowMods:" +
 				 			 "\n---swichId: " + newSwitchId + 
-				 			 "\n---srcIp: " + newSrcIp +
-				 			 "\n---dstIp: " + newDstIp +
-				 			 "\n---protocol: " + newProtocol +
-				 			 "\n---srcPort: " + newSrcPort +
-				 			 "\n---dstPort: " + newDstPort;
+				 			 "\n---dstIp: " + newDstIp;
             	logger.info(newLogInfo);
-            	createFlowMods(newSwitchId, newSrcIp, newDstIp, newProtocol, newSrcPort, newDstPort, Integer.parseInt(newOutPort));                    	
+            	createFlowMods(newSwitchId, null, newDstIp, null, null, null, newOutPort);                    	
         }                
     }
 	
-	public void deleteFlowMods(String switchid, String srcipv4, String dstipv4, 
-			String protocol, String srcport, String dstport, int outport){
-		IOFSwitch mySwitch = switchService.getSwitch(DatapathId.of(switchid));
+	public void deleteFlowMods(DatapathId switchid, IPv4AddressWithMask srcipv4, IPv4AddressWithMask dstipv4, 
+			IpProtocol protocol, TransportPort srcport, TransportPort dstport, OFPort outport){
+		IOFSwitch mySwitch = switchService.getSwitch(switchid);
 		OFFactory myFactory = mySwitch.getOFFactory();
 		//OFVersion myVersion = myFactory.getVersion();
 		int priority =1024;
@@ -246,23 +273,23 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		if (srcipv4 != null || protocol != null)
 			priority = 2048;
 		if (srcipv4 != null)
-			myMatchBuilder.setMasked(MatchField.IPV4_SRC, IPv4AddressWithMask.of(srcipv4));
+			myMatchBuilder.setMasked(MatchField.IPV4_SRC, srcipv4);
 		if (dstipv4 != null)
-			myMatchBuilder.setMasked(MatchField.IPV4_DST, IPv4AddressWithMask.of(dstipv4));
+			myMatchBuilder.setMasked(MatchField.IPV4_DST, dstipv4);
 		if (protocol != null){
-			if (protocol.equalsIgnoreCase("tcp")){
+			if (protocol==IpProtocol.TCP){
 				myMatchBuilder.setExact(MatchField.IP_PROTO, IpProtocol.TCP);
 				if (srcport != null)
-					myMatchBuilder.setExact(MatchField.TCP_SRC, TransportPort.of(Integer.parseInt(srcport)));
+					myMatchBuilder.setExact(MatchField.TCP_SRC, srcport);
 				if (dstport != null)
-					myMatchBuilder.setExact(MatchField.TCP_DST, TransportPort.of(Integer.parseInt(dstport)));
-			}		
-			if (protocol.equalsIgnoreCase("udp")){
+					myMatchBuilder.setExact(MatchField.TCP_DST, dstport);
+			}else if (protocol==IpProtocol.UDP){
 				myMatchBuilder.setExact(MatchField.IP_PROTO, IpProtocol.UDP);
 				if (srcport != null)
-					myMatchBuilder.setExact(MatchField.UDP_SRC, TransportPort.of(Integer.parseInt(srcport)));
+					myMatchBuilder.setExact(MatchField.UDP_SRC, srcport);
 				if (dstport != null)
-					myMatchBuilder.setExact(MatchField.UDP_DST, TransportPort.of(Integer.parseInt(dstport)));
+					myMatchBuilder.setExact(MatchField.UDP_DST, dstport);
+			}else{
 			}
 		}
 		
@@ -279,10 +306,13 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		mySwitch.write(flowDeleteStrict);
 	}
 
-	public void createFlowMods(String switchid, String srcipv4, String dstipv4, 
-			String protocol, String srcport, String dstport, int outport){
-		IOFSwitch mySwitch = switchService.getSwitch(DatapathId.of(switchid));
-		if(mySwitch==null) return ;
+	public void createFlowMods(DatapathId switchid, IPv4AddressWithMask srcipv4, IPv4AddressWithMask dstipv4, 
+			IpProtocol protocol, TransportPort srcport, TransportPort dstport, OFPort outport){
+		IOFSwitch mySwitch = switchService.getSwitch(switchid);
+		if(mySwitch==null) {
+			logger.warn("Create flow mods failed, switch {} not available", switchid);
+			return ;
+		}
 		OFFactory myFactory = mySwitch.getOFFactory();
 		OFVersion myVersion = myFactory.getVersion();
 		int priority = 1024;
@@ -292,23 +322,23 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		if (srcipv4 != null || protocol != null)
 			priority = 2048;
 		if (srcipv4 != null)
-			myMatchBuilder.setMasked(MatchField.IPV4_SRC, IPv4AddressWithMask.of(srcipv4));
+			myMatchBuilder.setMasked(MatchField.IPV4_SRC, srcipv4);
 		if (dstipv4 != null)
-			myMatchBuilder.setMasked(MatchField.IPV4_DST, IPv4AddressWithMask.of(dstipv4));
+			myMatchBuilder.setMasked(MatchField.IPV4_DST, dstipv4);
 		if (protocol != null){
-			if (protocol.equalsIgnoreCase("tcp")){
+			if (protocol==IpProtocol.TCP){
 				myMatchBuilder.setExact(MatchField.IP_PROTO, IpProtocol.TCP);
 				if (srcport != null)
-					myMatchBuilder.setExact(MatchField.TCP_SRC, TransportPort.of(Integer.parseInt(srcport)));
+					myMatchBuilder.setExact(MatchField.TCP_SRC, srcport);
 				if (dstport != null)
-					myMatchBuilder.setExact(MatchField.TCP_DST, TransportPort.of(Integer.parseInt(dstport)));
-			}		
-			if (protocol.equalsIgnoreCase("udp")){
+					myMatchBuilder.setExact(MatchField.TCP_DST, dstport);
+			}else if (protocol==IpProtocol.UDP){
 				myMatchBuilder.setExact(MatchField.IP_PROTO, IpProtocol.UDP);
 				if (srcport != null)
-					myMatchBuilder.setExact(MatchField.UDP_SRC, TransportPort.of(Integer.parseInt(srcport)));
+					myMatchBuilder.setExact(MatchField.UDP_SRC, srcport);
 				if (dstport != null)
-					myMatchBuilder.setExact(MatchField.UDP_DST, TransportPort.of(Integer.parseInt(dstport)));
+					myMatchBuilder.setExact(MatchField.UDP_DST, dstport);
+			}else{
 			}
 		}
 		
@@ -338,11 +368,15 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 				// Use builder again.
 				OFActionOutput output = actions10.buildOutput()
 				    .setMaxLen(0xFFffFFff)
-				    .setPort(OFPort.of(outport))
+				    .setPort(outport)
 				    .build();
 				actionList10.add(output);
 				
 				
+
+				//Set<OFFlowModFlags> flags = new HashSet<>();
+				//flags.add(OFFlowModFlags.SEND_FLOW_REM);
+
 				OFFlowAdd flowAdd10 = myFactory.buildFlowAdd()
 					    .setBufferId(OFBufferId.NO_BUFFER)
 					    .setHardTimeout(3600)
@@ -350,8 +384,10 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 					    .setPriority(priority)
 					    .setMatch(myMatch)
 					    .setActions(actionList10)
-					    .setOutPort(OFPort.of(outport))
+					    .setOutPort(outport)
+					    //.setFlags(flags) //to be removed
 					    .build();
+
 				
 				mySwitch.write(flowAdd10);
 				break;
@@ -387,7 +423,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 				// Output to a port is also an OFAction, not an OXM.
 				OFActionOutput output13 = actions13.buildOutput()
 				    .setMaxLen(0xFFffFFff)
-				    .setPort(OFPort.of(outport))
+				    .setPort(outport)
 				    .build();
 				actionList13.add(output13);
 				
@@ -405,7 +441,7 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 					    .setPriority(priority)
 					    .setMatch(myMatch)
 					    .setInstructions(instructionList13)
-					    .setOutPort(OFPort.of(outport))
+					    .setOutPort(outport)
 					    .build();
 				
 				mySwitch.write(flowAdd13);
@@ -417,14 +453,40 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		
 	}
 
-    public Map<RoutingIndex, RibEntryPriorityQueue> getRibin(){
+    public Map<IpPrefix, RibinEntryPriorityQueue> getRibin(){
     	return ribin;
     }
-    public Map<RoutingIndex, RibTableEntry> getRibout(){
+    public Map<IpPrefix, RiboutTableEntry> getRibout(){
     	return ribout;
     }
-    public Map<RoutingIndex, FibTableEntry> getFib(){
+    public Map<IpPrefix, FibTableEntry> getFib(){
     	return fib;
     }
+    
+    
+    
+	@Override
+	public void switchAdded(DatapathId switchId) {
+		if(bgpController.getBorderSwitches().contains(switchId)){
+			for(FibTableEntry fibEntry:fib.values()){
+				if(fibEntry.getNextHop().getNodeId().equals(switchId)){
+					modifyFlowTable(fibEntry.getPrefix(), null, fibEntry);
+				}
+			}
+		}
+	}
+	@Override
+	public void switchRemoved(DatapathId switchId) {
+	}
+	@Override
+	public void switchActivated(DatapathId switchId) {
+	}
+	@Override
+	public void switchPortChanged(DatapathId switchId, OFPortDesc port,
+			PortChangeType type) {
+	}
+	@Override
+	public void switchChanged(DatapathId switchId) {
+	}
 	
 }

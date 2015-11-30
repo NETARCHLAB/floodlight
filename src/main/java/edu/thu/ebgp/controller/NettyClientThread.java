@@ -23,6 +23,7 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.handler.codec.frame.LineBasedFrameDecoder;
 import org.jboss.netty.handler.codec.string.StringDecoder;
 import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.slf4j.Logger;
@@ -33,7 +34,8 @@ import edu.thu.ebgp.exception.OpenFailException;
 
 public class NettyClientThread {
 
-    private static Logger logger = LoggerFactory.getLogger("egp.controller.ClientThread");
+    private static Logger logger = LoggerFactory.getLogger(NettyClientThread.class);
+    public static int BUFFER_SIZE=65536;
 
     private Map<String,RemoteController> controllerMap;
     private ClientBootstrap bootstrap;
@@ -62,7 +64,7 @@ public class NettyClientThread {
     	bootstrap=new ClientBootstrap(channelFactory);
     	bootstrap.setPipelineFactory(new ChannelPipelineFactory(){
     		public ChannelPipeline getPipeline() throws Exception{
-    			return Channels.pipeline(new StringDecoder(),new StringEncoder(),new ClientHandler());
+    			return Channels.pipeline(new LineBasedFrameDecoder(BUFFER_SIZE), new StringDecoder(),new StringEncoder(),new ClientHandler());
     		}
     	});
     	for(RemoteController ctrl:controllerMap.values()){

@@ -12,8 +12,8 @@ import edu.thu.bgp.gather.message.GatherReply;
 import edu.thu.bgp.gather.message.GatherRequest;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.routing.BGPRoutingTable;
-import edu.thu.ebgp.routing.FibTableEntry;
-import edu.thu.ebgp.routing.RoutingIndex;
+import edu.thu.ebgp.routing.IpPrefix;
+import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
 
 public class ViewState {
 
@@ -92,7 +92,8 @@ CurrentAS and ToAS is provider to customer.
 			for (int j=0;j<100;j++)
 				Relation[i][j]=-1;
 		}
-		RoutingIndex routingIndex=new RoutingIndex();
+//		RoutingIndex routingIndex=new RoutingIndex();
+		IpPrefix routingIndex=new IpPrefix(msg.getDstPrefix());
 		routingIndex.setDstIp(msg.getDstPrefix());
 		
 		if (table.containLocalPrefix(routingIndex)){//current AS is the destination AS
@@ -145,6 +146,7 @@ CurrentAS and ToAS is provider to customer.
 		
 		// add the link between the currentAS and the fromAS to linkSet with a reply message
 		if(table.containLocalPrefix(routingIndex)){ // current AS is the destination AS
+		
 			linkSet.add(link);
 			GatherReply reply=new GatherReply();
 			reply.setSrcAS(msg.getSrcAS());

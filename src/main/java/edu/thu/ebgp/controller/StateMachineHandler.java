@@ -7,11 +7,12 @@ import edu.thu.ebgp.exception.NotificationException;
 import edu.thu.ebgp.exception.OpenFailException;
 import edu.thu.ebgp.message.*;
 import edu.thu.ebgp.routing.BGPRoutingTable;
-import edu.thu.ebgp.routing.HopSwitch;
-import edu.thu.ebgp.routing.FibTableEntry;
+import edu.thu.ebgp.routing.tableEntry.FibTableEntry;
 
 import java.io.File;
 import java.util.GregorianCalendar;
+
+import net.floodlightcontroller.topology.NodePortTuple;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +42,7 @@ public class StateMachineHandler {
 
     public void handleMessage(EBGPMessageBase msg) throws OpenFailException, NotificationException {
         logger.debug("Handle event " + msg.getWritable());
-        HopSwitch hopSwitch;
+        NodePortTuple hopSwitch;
         switch(msg.getType()){
         case OPEN:
         	this.handleOpen((OpenMessage)msg);
@@ -51,12 +52,12 @@ public class StateMachineHandler {
 			break;
 		case LINKDOWN:
             remoteCtrl.getDefaultLink().setState(RemoteLink.LinkState.DOWN);
-            hopSwitch = new HopSwitch(remoteCtrl.getDefaultLink().getLocalSwitchId(), remoteCtrl.getDefaultLink().getLocalSwitchPort());
+            hopSwitch = new NodePortTuple(remoteCtrl.getDefaultLink().getLocalSwitchId(), remoteCtrl.getDefaultLink().getLocalPort());
             table.onLinkDown(hopSwitch);
 			break;
 		case LINKUP:
             remoteCtrl.getDefaultLink().setState(RemoteLink.LinkState.UP);
-            hopSwitch = new HopSwitch(remoteCtrl.getDefaultLink().getRemoteSwitchId(), remoteCtrl.getDefaultLink().getRemoteSwitchPort());
+            hopSwitch = new NodePortTuple(remoteCtrl.getDefaultLink().getRemoteSwitchId(), remoteCtrl.getDefaultLink().getRemotePort());
             //controller.getTable().sendAllEntry(controller.getSendEvent(), hopSwitch);
 			break;
 		case NOTIFICATION:
