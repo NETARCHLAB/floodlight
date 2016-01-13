@@ -253,7 +253,12 @@ public class BGPControllerMain implements IFloodlightModule,IBGPConnectService{
 	}
 	
 	public void sendMessage(String toAS, EBGPMessageBase msg){
-		controllerMap.get(toAS).sendMessage(msg);
+		RemoteController rc=controllerMap.get(toAS);
+		if(rc!=null){
+			rc.sendMessage(msg);
+		}else{
+			logger.warn("AS : "+toAS+" not found");
+		}
 	}
 
 }

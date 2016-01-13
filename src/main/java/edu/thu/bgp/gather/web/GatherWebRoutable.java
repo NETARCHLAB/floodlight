@@ -13,6 +13,8 @@ public class GatherWebRoutable implements RestletRoutable{
 		Router router=new Router(context);
 		router.attach("/operate",GatherOperationResource.class);
 		router.attach("/operate/{op}",GatherOperationResource.class);
+		router.attach("/operate/{op}/{srcas}/{dstip}",GatherOperationResource.class);
+		router.attach("/operate/{op}/{dstip}",GatherOperationResource.class);
 		router.attach("/timeouttest",TimeoutTestResource.class);
 		return router;
 	}

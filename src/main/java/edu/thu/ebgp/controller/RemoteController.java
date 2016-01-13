@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import edu.thu.bgp.gather.GatherModule;
 import edu.thu.bgp.gather.IGatherService;
+import edu.thu.bgp.gather.message.GatherMessage;
 import edu.thu.ebgp.config.RemoteControllerConfig;
 import edu.thu.ebgp.config.RemoteControllerLinkConfig;
 import edu.thu.ebgp.exception.NotificationException;
@@ -158,7 +159,7 @@ public class RemoteController {
     		}else{
     			if(msg.getType()==EBGPMessageType.GATHER){
     				//TODO change String to GatherMessage
-    				gather.onGatherMessage(this.id,line);
+    				gather.onGatherMessage(this.id,(GatherMessage)msg);
     			}else{
     				stateMachine.handleMessage(msg);
     			}

@@ -28,4 +28,7 @@ public class GatherKey {
 			return false;
 		}
 	}
+	public String toKeyString(){
+		return srcAS+"-"+dstPrefix;
+	}
 }

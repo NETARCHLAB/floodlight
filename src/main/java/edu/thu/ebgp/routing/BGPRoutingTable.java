@@ -87,6 +87,8 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     private Map<IpPrefix, FibTableEntry> fib = new HashMap<IpPrefix, FibTableEntry>();
 
     private Set<IpPrefix> localPrefixTable=new HashSet<IpPrefix>();
+    
+    private BorderFlowSync borderFlowSync;
 
     public void onLinkDown(NodePortTuple nodePort) {
     	//TODO
@@ -165,12 +167,16 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 		this.bgpController=(BGPControllerMain)context.getServiceImpl(IBGPConnectService.class);
 		this.switchService=context.getServiceImpl(IOFSwitchService.class);
 		this.routingEngineService = context.getServiceImpl(IRoutingService.class);
+		this.borderFlowSync=new BorderFlowSync(context);
 	}
 
     public void updateRoute(RemoteController rCtrl,UpdateInfo info){
     	// convert info to ribin entry
     	RibinTableEntry ribinEntry=new RibinTableEntry(info);
     	IpPrefix updatePrefix=ribinEntry.getPrefix();
+    	if(this.containLocalPrefix(updatePrefix)){
+    		return ;
+    	}
 
     	// 0. add in rib in 
     	RibinEntryPriorityQueue queue=ribin.get(ribinEntry.getPath());
@@ -247,7 +253,8 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
     				"\n---swichId: " + oldSwitchId + 
     				"\n---dstIp: " + oldDstIp;
     		logger.info(oldLogInfo);
-    		deleteFlowMods(oldSwitchId, null, oldDstIp, null, null, null, oldOutPort);
+    		BorderFlow borderFlow=new BorderFlow(oldSwitchId, null, oldDstIp, null, null, null, oldOutPort);
+    		borderFlowSync.delFlow(borderFlow);
     	}
         if (newEntry!=null && !newEntry.isEmpty()) {
             IPv4AddressWithMask newDstIp = newEntry.getPrefix().getDstIp();
@@ -257,7 +264,8 @@ public class BGPRoutingTable implements IFloodlightModule, IBGPRoutingTableServi
 				 			 "\n---swichId: " + newSwitchId + 
 				 			 "\n---dstIp: " + newDstIp;
             	logger.info(newLogInfo);
-            	createFlowMods(newSwitchId, null, newDstIp, null, null, null, newOutPort);                    	
+            	BorderFlow borderFlow=new BorderFlow(newSwitchId, null, newDstIp, null, null, null, newOutPort);
+            	borderFlowSync.addFlow(borderFlow);
         }                
     }
 	

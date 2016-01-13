@@ -14,6 +14,9 @@ public class GatherMessage extends EBGPMessageBase {
         this.setType(EBGPMessageType.GATHER);
         gatherInfo=info;
     }
+    public GatherBase getInfo(){
+    	return gatherInfo;
+    }
     public String getWritable(){
     	return "GATHER "+gatherInfo.toJsonString();
     }

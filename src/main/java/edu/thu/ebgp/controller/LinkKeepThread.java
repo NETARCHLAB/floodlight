@@ -102,15 +102,15 @@ public class LinkKeepThread implements IOFMessageListener,IOFSwitchListener{
 	}
 	@Override
 	public String getName() {
-		return LinkKeepThread.class.getSimpleName();
+		return "linkkeep";
 	}
 	@Override
 	public boolean isCallbackOrderingPrereq(OFType type, String name) {
-		return false;
+		return (type.equals(OFType.PACKET_IN) && (name.equals("topology") || name.equals("devicemanager") || name.equals("firewall")));
 	}
 	@Override
 	public boolean isCallbackOrderingPostreq(OFType type, String name) {
-		return false;
+		return (type.equals(OFType.PACKET_IN) && (name.equals("forwarding") || name.equals("ibgprouting") ) );
 	}
 
 	///////////////////////

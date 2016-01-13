@@ -38,6 +38,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	protected BGPControllerMain bgpCtrlMain;
 	protected IThreadPoolService threadPool;
 	protected BGPRoutingTable table;
+	private Map<GatherKey,ViewState> viewStateMap;
 
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleServices() {
@@ -76,7 +77,6 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 		restApi.addRestletRoutable(new GatherWebRoutable());
 	}
 
-	private Map<GatherKey,ViewState> viewStateMap;
 	public void asynCall(int timeout,Runnable runnable){
 		ScheduledExecutorService ses = threadPool.getScheduledExecutor();
 		SingletonTask discoveryTask = new SingletonTask(ses,runnable);
@@ -84,8 +84,8 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	}
 
 	@Override
-	public synchronized void onGatherMessage(String fromAS,String message) {
-		GatherBase msg=GatherBase.createFromJson(message);
+	public synchronized void onGatherMessage(String fromAS,GatherMessage message) {
+		GatherBase msg=message.getInfo();
 		if(msg.getType().equals("reply")){
 			GatherReply gatherReply=(GatherReply)msg;
 			GatherKey key=new GatherKey(gatherReply.getSrcAS(),gatherReply.getDstPrefix());
@@ -109,7 +109,8 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 
 	@Override
 	public void doGather(String prefix,int limit){
-		GatherRequest gatherRequest=new GatherRequest(bgpCtrlMain.getLocalId(),prefix,limit);
+		logger.info("on reply time : "+System.currentTimeMillis());
+		GatherRequest gatherRequest=new GatherRequest(bgpCtrlMain.getLocalId(),prefix,limit-1);
 		for(RemoteController remoteCtrl:bgpCtrlMain.getControllerMap().values()){
 			remoteCtrl.sendMessage(new GatherMessage(gatherRequest));
 		}
@@ -120,13 +121,15 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 			viewStateMap.put(key, viewState);
 		}
 	}
-	public Set<AsLink> getView(){
-		//TODO
-		return null;
+	public Map<String,ViewState> getViewStateMap(){
+		Map<String,ViewState> tempMap=new HashMap<String,ViewState>();
+		for(Map.Entry<GatherKey, ViewState> e:viewStateMap.entrySet()){
+			tempMap.put(e.getKey().toKeyString() , e.getValue());
+		}
+		return tempMap;
 	}
-	public ViewState getViewState(){
-		//TODO
-		return null;
+	public ViewState getViewState(String dstPrefix){
+		return viewStateMap.get(new GatherKey(bgpCtrlMain.getLocalId(),dstPrefix));
 	}
 
 	public void sendTo(String toAS,GatherBase msg){
