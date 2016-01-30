@@ -101,68 +101,10 @@ CurrentAS and ToAS is provider to customer.
 	}
 	
 	public void onRequest(String fromAS,GatherRequest msg){
+		logger.info("on request : fromAS="+fromAS+",msg="+msg.toJsonString());
 		AsLink link=new AsLink(fromAS,ctrlMain.getLocalId());
-		String currentAS;
-		currentAS=ctrlMain.getLocalId();
-		int Relation[][]=new int[100][100];
-		//read from another file
-		/*
-		for (int i=0;i<100;i++){
-			for (int j=0;j<100;j++)
-				Relation[i][j]=-1;
-		}*/
-//		RoutingIndex routingIndex=new RoutingIndex();
 		IpPrefix routingIndex=new IpPrefix(msg.getDstPrefix());
 		routingIndex.setDstIp(msg.getDstPrefix());
-		/*
-		if (table.containLocalPrefix(routingIndex)){//current AS is the destination AS
-			Set<AsLink> tempLinkSet=new HashSet<AsLink>();
-			tempLinkSet.add(link);
-			GatherReply reply=new GatherReply();
-			reply.setSrcAS(msg.getSrcAS());
-			reply.setDstPrefix(msg.getDstPrefix());
-			reply.setViewListBySet(tempLinkSet);
-			gatherModule.sendTo(fromAS,reply);
-		}else{//current AS is the transit AS
-			if (state==State.STATE_IDLE){
-				linkSet.add(link);
-				replyList.add(fromAS);
-				for(String toAS:ctrlMain.getControllerMap().keySet()){
-					if(toAS.equals(fromAS)){
-						continue;
-					}else{
-						// check relationship
-						if (RelationShip(Relation, fromAS, currentAS,toAS)==true){
-							FibTableEntry fib=table.getFib().get(routingIndex);
-							// the hops from the current AS to the destination AS is larger than the ttl  limit (use hops to denote ttl) 
-							if( (fib==null) || (msg.getTtl() < fib.getPath().size())){
-								GatherReply reply=new GatherReply();
-								reply.setSrcAS(msg.getSrcAS());
-								reply.setDstPrefix(msg.getDstPrefix());
-								// send an empty reply back to the fromAS
-								gatherModule.sendTo(fromAS,reply); 
-								}else{
-									int ttl=msg.getTtl()-1;
-									GatherRequest request=new GatherRequest(msg.getSrcAS(),msg.getDstPrefix(),ttl);
-									gatherModule.sendTo(toAS,request);
-									waitList.add(toAS);	
-									state=State.STATE_START;
-									logger.info("before asyn call");
-									gatherModule.asynCall(ttl*unitTime, new DoReplyRun());
-									logger.info("after asyn call");
-								}
-						}else{
-							 ForbiddenAsSet asSet=new ForbiddenAsSet(fromAS,currentAS,toAS);
-							 forbidAsSet.add(asSet);			 
-						}
-					}	
-				}
-			}else{//state==State.STATE_START
-				
-			}
-		}*/
-		
-		
 		
 		// add the link between the currentAS and the fromAS to linkSet with a reply message
 		if(table.containLocalPrefix(routingIndex)){ // current AS is the destination AS

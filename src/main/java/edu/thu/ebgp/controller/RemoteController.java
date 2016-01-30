@@ -180,6 +180,7 @@ public class RemoteController {
 		case OPENSENT:
 		case OPENCONFIRM:
 		case ESTABLISHED:
+			logger.info("send to : "+this.id+" message="+msg.getWritable());
     		channel.write(msg.getWritable());
     		channel.write("\n");
 			break;

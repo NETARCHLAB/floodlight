@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import edu.thu.bgp.gather.message.GatherBase;
 import edu.thu.bgp.gather.message.GatherMessage;
 import edu.thu.bgp.gather.message.GatherReply;
 import edu.thu.bgp.gather.message.GatherRequest;
+import edu.thu.bgp.gather.message.RoutingInstall;
 import edu.thu.bgp.gather.web.GatherWebRoutable;
 import edu.thu.ebgp.controller.BGPControllerMain;
 import edu.thu.ebgp.controller.IBGPConnectService;
@@ -38,6 +38,9 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	protected BGPControllerMain bgpCtrlMain;
 	protected IThreadPoolService threadPool;
 	protected BGPRoutingTable table;
+
+	protected AppRouting appRouting;
+
 	private Map<GatherKey,ViewState> viewStateMap;
 
 	@Override
@@ -75,6 +78,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 	public void startUp(FloodlightModuleContext context)
 			throws FloodlightModuleException {
 		restApi.addRestletRoutable(new GatherWebRoutable());
+		appRouting=new AppRouting(context);
 	}
 
 	public void asynCall(int timeout,Runnable runnable){
@@ -85,6 +89,7 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 
 	@Override
 	public synchronized void onGatherMessage(String fromAS,GatherMessage message) {
+		logger.info("on gather msg:"+message.getWritable());
 		GatherBase msg=message.getInfo();
 		if(msg.getType().equals("reply")){
 			GatherReply gatherReply=(GatherReply)msg;
@@ -104,12 +109,15 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 				viewStateMap.put(key, viewState);
 			}
 			viewState.onRequest(fromAS, gatherRequest);
+		}else if(msg.getType().equals("routing")){
+			RoutingInstall routingInstall=(RoutingInstall)msg;
+			appRouting.onRoutingInstall(fromAS, routingInstall, message);
 		}
 	}
 
 	@Override
 	public void doGather(String prefix,int limit){
-		logger.info("on reply time : "+System.currentTimeMillis());
+		logger.info("start do gather: "+System.currentTimeMillis());
 		GatherRequest gatherRequest=new GatherRequest(bgpCtrlMain.getLocalId(),prefix,limit-1);
 		for(RemoteController remoteCtrl:bgpCtrlMain.getControllerMap().values()){
 			remoteCtrl.sendMessage(new GatherMessage(gatherRequest));
@@ -134,5 +142,8 @@ public class GatherModule implements IFloodlightModule,IGatherService{
 
 	public void sendTo(String toAS,GatherBase msg){
 		bgpCtrlMain.sendMessage(toAS,new GatherMessage(msg));
+	}
+	public AppRouting getAppRouting(){
+		return appRouting;
 	}
 }

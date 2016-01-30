@@ -30,6 +30,8 @@ public class GatherBase {
 				return om.treeToValue(jn, GatherReply.class);
 			}else if(jnType.equals("request")){
 				return om.treeToValue(jn, GatherRequest.class);
+			}else if(jnType.equals("routing")){
+				return om.treeToValue(jn, RoutingInstall.class);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

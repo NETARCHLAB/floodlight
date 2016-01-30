@@ -27,5 +27,11 @@ public class AsLink {
 			return this.srcCid.equals(link.srcCid) && this.dstCid.equals(link.dstCid);
 		}else return false;
 	}
+	public String getSrcCid(){
+		return srcCid;
+	}
+	public String getDstCid(){
+		return dstCid;
+	}
 
 }

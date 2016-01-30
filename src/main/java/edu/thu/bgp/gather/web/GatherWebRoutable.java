@@ -16,6 +16,7 @@ public class GatherWebRoutable implements RestletRoutable{
 		router.attach("/operate/{op}/{srcas}/{dstip}",GatherOperationResource.class);
 		router.attach("/operate/{op}/{dstip}",GatherOperationResource.class);
 		router.attach("/timeouttest",TimeoutTestResource.class);
+		router.attach("/app",RoutingApplicationResource.class);
 		return router;
 	}
 
